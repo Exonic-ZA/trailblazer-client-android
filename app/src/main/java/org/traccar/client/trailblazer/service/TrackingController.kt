@@ -13,20 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.traccar.client
+package org.traccar.client.trailblazer.service
 
 import android.content.Context
-import org.traccar.client.ProtocolFormatter.formatRequest
-import org.traccar.client.RequestManager.sendRequestAsync
-import org.traccar.client.PositionProvider.PositionListener
-import org.traccar.client.NetworkManager.NetworkHandler
+import org.traccar.client.trailblazer.model.ProtocolFormatter.formatRequest
+import org.traccar.client.trailblazer.network.RequestManager.sendRequestAsync
+import org.traccar.client.trailblazer.service.PositionProvider.PositionListener
+import org.traccar.client.trailblazer.service.NetworkManager.NetworkHandler
 import android.os.Handler
 import android.os.Looper
 import androidx.preference.PreferenceManager
 import android.util.Log
-import org.traccar.client.DatabaseHelper.DatabaseHandler
-import org.traccar.client.RequestManager.RequestHandler
+import org.traccar.client.Position
+import org.traccar.client.PositionProviderFactory
+import org.traccar.client.R
+import org.traccar.client.trailblazer.ui.Trailblazer
+import org.traccar.client.trailblazer.data.database.DatabaseHelper.DatabaseHandler
+import org.traccar.client.trailblazer.network.RequestManager.RequestHandler
+import org.traccar.client.trailblazer.data.database.DatabaseHelper
+import org.traccar.client.trailblazer.ui.MainFragment
+import org.traccar.client.trailblazer.ui.StatusActivity
 
+/**
+ * The TrackingController class is responsible for managing the lifecycle and operations of a
+ * tracking service. It handles receiving position updates, storing them in a local database,
+ * sending them to a remote server, and retrying if network connectivity or other conditions
+ * are unfavorable.
+ */
 class TrackingController(private val context: Context) : PositionListener, NetworkHandler {
 
     private val handler = Handler(Looper.getMainLooper())
@@ -45,21 +58,21 @@ class TrackingController(private val context: Context) : PositionListener, Netwo
         if (isOnline) {
             read()
         }
-        try {
-            positionProvider.startUpdates()
-        } catch (e: SecurityException) {
-            Log.w(TAG, e)
-        }
+//        try {
+//            positionProvider.startUpdates()
+//        } catch (e: SecurityException) {
+//            Log.w(TAG, e)
+//        }
         networkManager.start()
     }
 
     fun stop() {
         networkManager.stop()
-        try {
-            positionProvider.stopUpdates()
-        } catch (e: SecurityException) {
-            Log.w(TAG, e)
-        }
+//        try {
+//            positionProvider.stopUpdates()
+//        } catch (e: SecurityException) {
+//            Log.w(TAG, e)
+//        }
         handler.removeCallbacksAndMessages(null)
     }
 
@@ -70,9 +83,11 @@ class TrackingController(private val context: Context) : PositionListener, Netwo
         } else {
             send(position)
         }
+        log("onPositionUpdate :$position", position)
     }
 
     override fun onPositionError(error: Throwable) {}
+
     override fun onNetworkUpdate(isOnline: Boolean) {
         val message = if (isOnline) R.string.status_network_online else R.string.status_network_offline
         StatusActivity.addMessage(context.getString(message))
@@ -120,13 +135,14 @@ class TrackingController(private val context: Context) : PositionListener, Netwo
         log("read", null)
         databaseHelper.selectPositionAsync(object : DatabaseHandler<Position?> {
             override fun onComplete(success: Boolean, result: Position?) {
+
                 if (success) {
                     if (result != null) {
-                        if (result.deviceId == preferences.getString(MainFragment.KEY_DEVICE, null)) {
+//                        if (result.deviceId == Trailblazer.Server_Details.device_id) {
                             send(result)
-                        } else {
-                            delete(result)
-                        }
+//                        } else {
+//                            delete(result)
+//                        }
                     } else {
                         isWaiting = true
                     }
@@ -151,20 +167,24 @@ class TrackingController(private val context: Context) : PositionListener, Netwo
     }
 
     private fun send(position: Position) {
+        position.deviceId = Trailblazer.Server_Details.device_id.replace("\\s".toRegex(), "").uppercase()
+        val serverUrl: String = Trailblazer.Server_Details.server_url
+        val request = formatRequest(serverUrl, position)
+        log("Server:$request", position)
         log("send", position)
-        val request = formatRequest(url, position)
         sendRequestAsync(request, object : RequestHandler {
             override fun onComplete(success: Boolean) {
-                if (success) {
-                    if (buffer) {
-                        delete(position)
-                    }
-                } else {
-                    StatusActivity.addMessage(context.getString(R.string.status_send_fail))
-                    if (buffer) {
+                log("Sent", position)
+//                if (success) {
+//                    if (buffer) {
+//                        delete(position)
+//                    }
+//                } else {
+//                    StatusActivity.addMessage(context.getString(R.string.status_send_fail))
+//                    if (buffer) {
                         retry()
-                    }
-                }
+//                    }
+//                }
             }
         })
     }
@@ -180,7 +200,7 @@ class TrackingController(private val context: Context) : PositionListener, Netwo
 
     companion object {
         private val TAG = TrackingController::class.java.simpleName
-        private const val RETRY_DELAY = 30 * 1000
+        private const val RETRY_DELAY = 5 * 1000
     }
 
 }
