@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.traccar.client
+package org.traccar.client.trailblazer.service
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
@@ -33,8 +32,19 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
+import org.traccar.client.R
+import org.traccar.client.trailblazer.ui.Trailblazer
+import org.traccar.client.trailblazer.util.WakefulBroadcastReceiver
+import org.traccar.client.trailblazer.core.MainApplication
+import org.traccar.client.trailblazer.ui.MainFragment
+import org.traccar.client.trailblazer.ui.StatusActivity
 import java.lang.RuntimeException
 
+/**
+ * it is designed to manage background service-related tasks for tracking, including handling wake
+ * locks, starting and stopping the TrackingController, and interacting with the system's
+ * notification framework.
+ */
 class TrackingService : Service() {
 
     private var wakeLock: WakeLock? = null
@@ -101,7 +111,8 @@ class TrackingService : Service() {
                 .setSmallIcon(R.drawable.ic_stat_notify)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            val intent = Intent(context, MainActivity::class.java)
+            val intent = Intent(context, Trailblazer::class.java)
+//            val intent = Intent(context, MainActivity::class.java)
             builder
                 .setContentTitle(context.getString(R.string.settings_status_on_summary))
                 .setTicker(context.getString(R.string.settings_status_on_summary))
