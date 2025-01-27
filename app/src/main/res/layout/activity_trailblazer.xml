@@ -32,15 +32,28 @@
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"/>
+            <!-- Settings Button -->
             <ImageButton
                 android:id="@+id/sos"
                 android:layout_width="60dp"
                 android:layout_height="60dp"
-                android:layout_gravity="end"
                 android:background="@android:color/transparent"
                 android:src="@drawable/sos"
+                android:layout_margin="@dimen/eight_dp"
                 android:scaleType="fitCenter"
                 tools:ignore="ContentDescription"/>
+
+            <ImageButton
+                android:id="@+id/settings_button"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:padding="@dimen/twelve_dp"
+                android:onClick="settingsClicked"
+                android:src="@drawable/settings"
+                android:scaleType="fitCenter"
+                android:background="@drawable/rounded_button"
+                android:layout_margin="@dimen/eight_dp"
+                tools:ignore="ContentDescription,UsingOnClickInXml"/>
         </LinearLayout>
 
         <!-- Logo and Device ID Section -->
@@ -136,18 +149,21 @@
                     android:textColor="@color/white"/>
             </LinearLayout>
 
-            <!-- Settings Button -->
             <ImageButton
-                android:id="@+id/settings_button"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
+                android:id="@+id/btn_photo_capture"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
                 android:padding="@dimen/twelve_dp"
+                android:layout_marginStart="@dimen/twelve_dp"
                 android:onClick="settingsClicked"
-                android:src="@drawable/settings"
+                android:src="@drawable/ic_photo"
                 android:scaleType="fitCenter"
                 android:background="@drawable/rounded_button"
-                android:layout_margin="@dimen/eight_dp"
+
                 tools:ignore="ContentDescription,UsingOnClickInXml"/>
+
+
+
         </LinearLayout>
     </LinearLayout>
 
@@ -261,18 +277,20 @@
                     android:onClick="cancelSettingsClicked"
                     android:text="@string/settings_cancel_button"
                     android:textColor="@color/black"
-                    tools:ignore="UsingOnClickInXml"/>
+                    tools:ignore="UsingOnClickInXml"
+                    style="?android:attr/buttonBarButtonStyle" />
                 <Button
                     android:id="@+id/settings_save"
                     android:layout_width="0dp"
                     android:layout_height="24dp"
                     android:layout_weight="1"
-                    android:layout_gravity="right"
+                    android:layout_gravity="end"
                     android:background="@drawable/round_outline"
                     android:onClick="saveSettingsClicked"
                     android:text="@string/settings_save_button"
                     android:textColor="@color/white"
-                    tools:ignore="UsingOnClickInXml"/>
+                    tools:ignore="UsingOnClickInXml"
+                    style="?android:attr/buttonBarButtonStyle" />
             </LinearLayout>
 
         </LinearLayout>
