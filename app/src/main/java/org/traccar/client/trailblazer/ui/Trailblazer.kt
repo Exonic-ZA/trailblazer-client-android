@@ -255,43 +255,52 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
 
     private fun sendAlarm() {
-
         try {
-            Sentry.captureMessage("SOS alarm triggered", SentryLevel.INFO);
+            Sentry.captureMessage("SOS alarm triggered", SentryLevel.INFO)
+
             val progressDialog = ProgressDialog(this@Trailblazer).apply {
                 setMessage("Sending SOS...")
                 setCancelable(false)
                 show()
             }
+
             Toast.makeText(
                 this@Trailblazer,
                 "Now sending SOS to the team...",
                 Toast.LENGTH_SHORT
             ).show()
-            //stopPulsatingAnimation(sosButton)
-            PositionProviderFactory.create(this, object : PositionListener {
+
+            val positionProvider = PositionProviderFactory.create(this, object : PositionListener {
                 override fun onPositionUpdate(position: Position) {
+                    progressDialog.dismiss()
 
-                    val preferences =
-                        PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
+                    if (position == null) {
+                        Sentry.captureMessage("Received null position in onPositionUpdate", SentryLevel.ERROR)
+                        Toast.makeText(this@Trailblazer, "Failed to get location", Toast.LENGTH_LONG).show()
+                        return
+                    }
 
-                    position.deviceId = device_id.replace("\\s".toRegex(), "").uppercase()
+                    val preferences = PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
+                    val url = server_url
 
-                    Sentry.addBreadcrumb("Position update received: $position", "GPS");
+                    if (url.isNullOrEmpty()) {
+                        Sentry.captureMessage("SOS failed: URL is missing from preferences", SentryLevel.ERROR)
+                        Toast.makeText(this@Trailblazer, "Missing SOS server URL", Toast.LENGTH_LONG).show()
+                        return
+                    }
 
-                    val request = formatRequest(
-                        preferences.getString(MainFragment.KEY_URL, null)!!,
-                        position,
-                        ShortcutActivity.ALARM_SOS
-                    )
+                    position.deviceId = device_id?.replace("\\s".toRegex(), "")?.uppercase() ?: "UNKNOWN"
+
+                    Sentry.addBreadcrumb("Position update received: $position", "GPS")
+
+                    val request = formatRequest(url, position, ShortcutActivity.ALARM_SOS)
                     sendRequestAsync(request, object : RequestHandler {
                         override fun onComplete(success: Boolean) {
-                            progressDialog.dismiss()
                             if (success) {
-                                Sentry.captureMessage("SOS sent successfully", SentryLevel.INFO);
+                                Sentry.captureMessage("SOS sent successfully", SentryLevel.INFO)
                                 showSuccessModal()
                             } else {
-                                Sentry.captureMessage("SOS send failed", SentryLevel.ERROR);
+                                Sentry.captureMessage("SOS send failed", SentryLevel.ERROR)
                                 Toast.makeText(
                                     this@Trailblazer,
                                     R.string.status_send_fail,
@@ -304,14 +313,25 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
                 override fun onPositionError(error: Throwable) {
                     progressDialog.dismiss()
-                    Toast.makeText(this@Trailblazer, error.message, Toast.LENGTH_LONG).show()
-                    Sentry.captureException(error);
+                    val errorMsg = error.message ?: "Unknown location error"
+                    Toast.makeText(this@Trailblazer, errorMsg, Toast.LENGTH_LONG).show()
+                    Sentry.captureException(error)
                 }
-            }).requestSingleLocation()
-        }catch (e: Exception) {
-            Sentry.captureException(e);
+            })
+
+            if (positionProvider != null) {
+                positionProvider.requestSingleLocation()
+            } else {
+                progressDialog.dismiss()
+                Sentry.captureMessage("PositionProviderFactory returned null", SentryLevel.ERROR)
+                Toast.makeText(this@Trailblazer, "Failed to initialize GPS", Toast.LENGTH_LONG).show()
+            }
+
+        } catch (e: Exception) {
+            Sentry.captureException(e)
         }
-              }
+    }
+
 
 
 
@@ -602,8 +622,8 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     private fun send(position: Position) {
         try {
-            position.deviceId = Server_Details.device_id.replace("\\s".toRegex(), "").uppercase()
-            val serverUrl: String = Server_Details.server_url
+            position.deviceId = device_id.replace("\\s".toRegex(), "").uppercase()
+            val serverUrl: String = server_url
             val request = formatRequest(serverUrl, position)
 
             sendRequestAsync(request, object : RequestHandler {
