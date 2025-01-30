@@ -145,7 +145,7 @@
                 android:onClick="settingsClicked"
                 android:src="@drawable/settings"
                 android:scaleType="fitCenter"
-                android:background="@drawable/rounded_button"
+                android:background="@drawable/round_outline"
                 android:layout_margin="@dimen/eight_dp"
                 tools:ignore="ContentDescription,UsingOnClickInXml"/>
         </LinearLayout>
