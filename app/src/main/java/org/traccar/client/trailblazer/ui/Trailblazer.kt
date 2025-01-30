@@ -56,6 +56,8 @@ import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.device_id
 import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.location_accuracy
 import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.server_url
 import org.traccar.client.trailblazer.util.BatteryOptimizationHelper
+import io.sentry.Sentry
+import io.sentry.SentryLevel
 
 
 class Trailblazer : AppCompatActivity(), PositionListener {
@@ -86,24 +88,24 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private var onlineStatus = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        supportActionBar?.hide()
-        //FirebaseApp.initializeApp(this)
-        setContentView(R.layout.activity_trailblazer)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(16, systemBars.top, 16, systemBars.bottom)
-            insets
-        }
-       // remoteConfig = FirebaseRemoteConfig.getInstance()
-       // remoteConfig.setDefaultsAsync(mapOf("logs_activated" to false))
+        super.onCreate(savedInstanceState);
 
-        setupView()
-        longPressSosButtonSetup()
-        setupPreferences()
-        setupLogsListener()
-        checkBatteryOptimization()
+        Sentry.addBreadcrumb("Trailblazer onCreate", "Lifecycle");
+        Sentry.captureMessage("Trailblazer activity created", SentryLevel.INFO);
+
+        try {
+            enableEdgeToEdge();
+            supportActionBar?.hide();
+            setContentView(R.layout.activity_trailblazer);
+        } catch (e: Exception) {
+            Sentry.captureException(e);
+        }
+
+        setupView();
+        longPressSosButtonSetup();
+        setupPreferences();
+        setupLogsListener();
+        checkBatteryOptimization();
     }
 
     private fun checkBatteryOptimization() {
@@ -161,29 +163,25 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         when (requestCode) {
             PERMISSIONS_REQUEST_LOCATION -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // Location permission granted, proceed with starting location updates
-                    connectUser()
+                    Sentry.captureMessage("Location permission granted", SentryLevel.INFO);
+                    connectUser();
                 } else {
-                    // Permission denied, show message to the user
-                    Toast.makeText(this, "Location permission is required to access GPS", Toast.LENGTH_LONG).show()
+                    Sentry.captureMessage("Location permission denied", SentryLevel.WARNING);
                 }
             }
-
             PERMISSIONS_REQUEST_BACKGROUND_LOCATION -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // Background location permission granted
-                    updateConnectionOnline()
-                    positionProvider.startUpdates()
-                    startTrackingService(checkPermission = true, initialPermission = false)
-                    Log.i(TAG, "User connected successfully.")
+                    Sentry.captureMessage("Background location permission granted", SentryLevel.INFO);
+                    updateConnectionOnline();
+                    positionProvider.startUpdates();
+                    startTrackingService(checkPermission = true, initialPermission = false);
                 } else {
-                    // Background location permission denied, show message to the user
-                    Toast.makeText(this, "Background location permission is required for tracking location in the background.", Toast.LENGTH_LONG).show()
+                    Sentry.captureMessage("Background location permission denied", SentryLevel.WARNING);
                 }
             }
         }
@@ -252,53 +250,65 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
 
     private fun sendAlarm() {
-        val progressDialog = ProgressDialog(this@Trailblazer).apply {
-            setMessage("Sending SOS...")
-            setCancelable(false)
-            show()
-        }
-        Toast.makeText(
-            this@Trailblazer,
-            "Now sending SOS to the team...",
-            Toast.LENGTH_SHORT
-        ).show()
-        //stopPulsatingAnimation(sosButton)
-        PositionProviderFactory.create(this, object : PositionListener {
-            override fun onPositionUpdate(position: Position) {
-                val preferences =
-                    PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
 
-                position.deviceId = device_id.replace("\\s".toRegex(), "").uppercase()
+        try {
+            Sentry.captureMessage("SOS alarm triggered", SentryLevel.INFO);
+            val progressDialog = ProgressDialog(this@Trailblazer).apply {
+                setMessage("Sending SOS...")
+                setCancelable(false)
+                show()
+            }
+            Toast.makeText(
+                this@Trailblazer,
+                "Now sending SOS to the team...",
+                Toast.LENGTH_SHORT
+            ).show()
+            //stopPulsatingAnimation(sosButton)
+            PositionProviderFactory.create(this, object : PositionListener {
+                override fun onPositionUpdate(position: Position) {
 
+                    val preferences =
+                        PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
 
+                    position.deviceId = device_id.replace("\\s".toRegex(), "").uppercase()
 
-                val request = formatRequest(
-                    preferences.getString(MainFragment.KEY_URL, null)!!,
-                    position,
-                    ShortcutActivity.ALARM_SOS
-                )
-                sendRequestAsync(request, object : RequestHandler {
-                    override fun onComplete(success: Boolean) {
-                        progressDialog.dismiss()
-                        if (success) {
-                            showSuccessModal()
-                        } else {
-                            Toast.makeText(
-                                this@Trailblazer,
-                                R.string.status_send_fail,
-                                Toast.LENGTH_SHORT
-                            ).show()
+                    Sentry.addBreadcrumb("Position update received: $position", "GPS");
+
+                    val request = formatRequest(
+                        preferences.getString(MainFragment.KEY_URL, null)!!,
+                        position,
+                        ShortcutActivity.ALARM_SOS
+                    )
+                    sendRequestAsync(request, object : RequestHandler {
+                        override fun onComplete(success: Boolean) {
+                            progressDialog.dismiss()
+                            if (success) {
+                                Sentry.captureMessage("SOS sent successfully", SentryLevel.INFO);
+                                showSuccessModal()
+                            } else {
+                                Sentry.captureMessage("SOS send failed", SentryLevel.ERROR);
+                                Toast.makeText(
+                                    this@Trailblazer,
+                                    R.string.status_send_fail,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
-                    }
-                })
-            }
+                    })
+                }
 
-            override fun onPositionError(error: Throwable) {
-                progressDialog.dismiss()
-                Toast.makeText(this@Trailblazer, error.message, Toast.LENGTH_LONG).show()
-            }
-        }).requestSingleLocation()
-    }
+                override fun onPositionError(error: Throwable) {
+                    progressDialog.dismiss()
+                    Toast.makeText(this@Trailblazer, error.message, Toast.LENGTH_LONG).show()
+                    Sentry.captureException(error);
+                }
+            }).requestSingleLocation()
+        }catch (e: Exception) {
+            Sentry.captureException(e);
+        }
+              }
+
+
 
 
     private fun showSuccessModal() {
@@ -382,10 +392,12 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private fun connectUser() {
         try {
             Log.d(TAG, "Connecting user...")
+            Sentry.captureMessage("Attempting to connect user", SentryLevel.INFO);
             onlineStatus = true
             checkLocationPermissions()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to connect user: ${e.message}", e)
+            Sentry.captureException(e);
         }
     }
 
@@ -416,12 +428,14 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private fun disconnectUser() {
         try {
             Log.d(TAG, "Disconnecting user...")
+            Sentry.captureMessage("Attempting to disconnect user", SentryLevel.INFO);
             onlineStatus = false
             updateConnectionOffline()
             positionProvider.stopUpdates()
             stopTrackingService()
             Log.i(TAG, "User disconnected successfully.")
         } catch (e: Exception) {
+            Sentry.captureException(e);
             Log.e(TAG, "Failed to disconnect user: ${e.message}", e)
         }
     }
