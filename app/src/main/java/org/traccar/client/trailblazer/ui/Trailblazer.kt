@@ -374,7 +374,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     public final fun settingsClicked(view: View) {
         Log.d(TAG, "settingsClicked invoked")
-        disconnectUser()
+        //disconnectUser()
         Log.i(TAG, "User disconnected successfully. Showing card view.")
         showCardView()
     }
