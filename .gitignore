@@ -5,3 +5,6 @@ local.properties
 build/
 .DS_Store
 google-services.json
+
+# Sentry Config File
+sentry.properties

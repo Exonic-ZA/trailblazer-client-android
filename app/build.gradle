@@ -3,6 +3,8 @@ plugins {
     id 'kotlin-android'
     id 'com.google.gms.google-services'
     id 'com.google.firebase.crashlytics'
+
+    id 'io.sentry.android.gradle' version '5.0.0'
 }
 
 android {
@@ -140,4 +142,14 @@ afterEvaluate {
             task.dependsOn copyFirebaseConfig
         }
     }
+}
+
+
+sentry {
+    org = "exonic-solutions"
+    projectName = "trailblazer-client-android"
+
+    // this will upload your source code to Sentry to show it as part of the stack traces
+    // disable if you don't want to expose your sources
+    includeSourceContext = true
 }
