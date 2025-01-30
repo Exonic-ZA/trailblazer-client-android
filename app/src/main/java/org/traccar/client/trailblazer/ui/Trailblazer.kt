@@ -163,7 +163,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         when (requestCode) {
             PERMISSIONS_REQUEST_LOCATION -> {
@@ -172,6 +172,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     connectUser();
                 } else {
                     Sentry.captureMessage("Location permission denied", SentryLevel.WARNING);
+                    Toast.makeText(this, "Location permission is required to access GPS", Toast.LENGTH_LONG).show()
                 }
             }
             PERMISSIONS_REQUEST_BACKGROUND_LOCATION -> {
@@ -180,8 +181,10 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     updateConnectionOnline();
                     positionProvider.startUpdates();
                     startTrackingService(checkPermission = true, initialPermission = false);
+                    Log.i(TAG, "Background location permission granted.")
                 } else {
                     Sentry.captureMessage("Background location permission denied", SentryLevel.WARNING);
+                    Toast.makeText(this, "Background location permission is required for tracking location in the background.", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -208,6 +211,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     isLongPressed = false // Reset state
                     longPressRunnable = Runnable {
                         isLongPressed = true
+                        Sentry.captureMessage("User long pressed", SentryLevel.INFO);
                         sendAlarm() // Send SOS alarm after long press
                         startPulsatingAnimation(view) // Start animation when long pressed
 
@@ -237,6 +241,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         sosButton.setOnClickListener {
             stopPulsatingAnimation(sosButton)
             if (!isLongPressed) {
+                Sentry.captureMessage("User did not long pressed", SentryLevel.INFO);
                 Toast.makeText(
                     this@Trailblazer,
                     "Please long press for 2s to Activate SOS",
@@ -338,6 +343,31 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         cardView.isVisible = false
 
         updateConnectionOffline()
+    }
+
+    private fun setupPreferences() {
+        sharedPreferences = getPreferences(MODE_PRIVATE)
+        alarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val originalIntent = Intent(this, AutostartReceiver::class.java)
+        originalIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        alarmIntent = PendingIntent.getBroadcast(this, 0, originalIntent, flags)
+
+        if (sharedPreferences.contains(KEY_DEVICE)) {
+            deviceId.text = sharedPreferences.getString(KEY_DEVICE, "")
+        } else {
+            sharedPreferences.edit().putString(KEY_DEVICE, "").apply()
+            deviceId.setText("")
+        }
+
+        device_id = deviceId.text.toString()
+        server_url = getString(R.string.settings_server_url_value)
+        location_accuracy = getString(R.string.settings_location_accuracy_value)
+        positionProvider = PositionProviderFactory.create(this, this)
     }
 
     public final fun clockInAndOut(view: View) {
@@ -484,30 +514,6 @@ class Trailblazer : AppCompatActivity(), PositionListener {
             Log.e(TAG, "Failed to hide keyboard: ${e.message}", e)
         }
     }
-    private fun setupPreferences() {
-        sharedPreferences = getPreferences(MODE_PRIVATE)
-        alarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val originalIntent = Intent(this, AutostartReceiver::class.java)
-        originalIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-        alarmIntent = PendingIntent.getBroadcast(this, 0, originalIntent, flags)
-
-        if (sharedPreferences.contains(KEY_DEVICE)) {
-            deviceId.text = sharedPreferences.getString(KEY_DEVICE, "")
-        } else {
-            sharedPreferences.edit().putString(KEY_DEVICE, "").apply()
-            deviceId.text = ""
-        }
-
-        device_id = deviceId.text.toString()
-        server_url = getString(R.string.settings_server_url_value)
-        location_accuracy = getString(R.string.settings_location_accuracy_value)
-        positionProvider = PositionProviderFactory.create(this, this)
-    }
 
     private fun showBackgroundLocationDialog(context: Context, onSuccess: () -> Unit) {
         val builder = AlertDialog.Builder(context)
@@ -595,15 +601,6 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     }
 
     private fun send(position: Position) {
-        position.deviceId = device_id.replace("\\s".toRegex(), "").uppercase()
-        val serverUrl: String = server_url
-        val request = formatRequest(serverUrl, position)
-        Log.d(TAG, "Server:$position")
-        sendRequestAsync(request, object : RequestHandler {
-            override fun onComplete(success: Boolean) {
-                Log.d(TAG, "Sent")
-            }
-        })
         try {
             position.deviceId = Server_Details.device_id.replace("\\s".toRegex(), "").uppercase()
             val serverUrl: String = Server_Details.server_url

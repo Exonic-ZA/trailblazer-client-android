@@ -37,8 +37,7 @@ class AndroidPositionProvider(context: Context, listener: PositionListener) : Po
 
     private val locationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private val provider =
-        getProvider("medium") // getProvider(preferences.getString(MainFragment.KEY_ACCURACY, "high"))
+    private val provider = getProvider("medium") // getProvider(preferences.getString(MainFragment.KEY_ACCURACY, "high"))
 
     @SuppressLint("MissingPermission")
     override fun startUpdates() {
