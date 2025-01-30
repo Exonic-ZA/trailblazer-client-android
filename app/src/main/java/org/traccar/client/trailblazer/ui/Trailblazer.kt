@@ -1,19 +1,27 @@
 package org.traccar.client.trailblazer.ui
 
 import android.Manifest
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.app.ProgressDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
+import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
@@ -32,30 +40,32 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import com.google.firebase.FirebaseApp
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import androidx.preference.PreferenceManager
+import com.google.android.material.snackbar.Snackbar
 import org.traccar.client.Position
 import org.traccar.client.PositionProviderFactory
 import org.traccar.client.R
-import org.traccar.client.trailblazer.service.PositionProvider.PositionListener
 import org.traccar.client.trailblazer.model.ProtocolFormatter.formatRequest
 import org.traccar.client.trailblazer.network.RequestManager.RequestHandler
 import org.traccar.client.trailblazer.network.RequestManager.sendRequestAsync
+import org.traccar.client.trailblazer.service.AutostartReceiver
+import org.traccar.client.trailblazer.service.PositionProvider
+import org.traccar.client.trailblazer.service.PositionProvider.PositionListener
+import org.traccar.client.trailblazer.service.TrackingService
 import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.device_id
 import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.location_accuracy
 import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.server_url
-import org.traccar.client.trailblazer.service.AutostartReceiver
-import org.traccar.client.trailblazer.service.PositionProvider
-import org.traccar.client.trailblazer.service.TrackingService
 import org.traccar.client.trailblazer.util.BatteryOptimizationHelper
 
 
 class Trailblazer : AppCompatActivity(), PositionListener {
 
-    private lateinit var connectionStatus: TextView;
+    private lateinit var connectionStatus: TextView
     private lateinit var sosButton: ImageButton
-    private lateinit var deviceId: TextView;
-    private lateinit var clockInImage: ImageView;
-    private lateinit var clockInText: TextView;
-    private lateinit var settingsButton: ImageButton;
+    private lateinit var deviceId: TextView
+    private lateinit var clockInImage: ImageView
+    private lateinit var clockInText: TextView
+    private lateinit var settingsButton: ImageButton
 
     private lateinit var cardView: CardView
     private lateinit var deviceIdText: EditText
@@ -68,6 +78,9 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private var requestingPermissions: Boolean = false
     private lateinit var positionProvider: PositionProvider // = PositionProviderFactory.create(this, this)
     private val handler = Handler(Looper.getMainLooper())
+    private var isLongPressed = false
+    private var longPressRunnable: Runnable? = null
+    private var pulsateAnimator: AnimatorSet? = null
     private lateinit var remoteConfig: FirebaseRemoteConfig
 
     private var onlineStatus = false
@@ -87,6 +100,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
        // remoteConfig.setDefaultsAsync(mapOf("logs_activated" to false))
 
         setupView()
+        longPressSosButtonSetup()
         setupPreferences()
         setupLogsListener()
         checkBatteryOptimization()
@@ -187,6 +201,115 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     }
 
+    private fun longPressSosButtonSetup() {
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+
+        sosButton.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isLongPressed = false // Reset state
+                    longPressRunnable = Runnable {
+                        isLongPressed = true
+                        sendAlarm() // Send SOS alarm after long press
+                        startPulsatingAnimation(view) // Start animation when long pressed
+
+                        // Add vibration
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
+                        } else {
+                            vibrator.vibrate(500) // Fallback for older devices
+                        }
+                    }
+                    handler.postDelayed(longPressRunnable!!, 2000) // 2 seconds delay
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(longPressRunnable!!)
+                    if (isLongPressed) {
+                        stopPulsatingAnimation(view) // Stop animation if long pressed
+                    } else {
+                        // Handle regular click
+                        view.performClick()
+                    }
+                }
+            }
+            true
+        }
+
+        sosButton.setOnClickListener {
+            stopPulsatingAnimation(sosButton)
+            if (!isLongPressed) {
+                Toast.makeText(
+                    this@Trailblazer,
+                    "Please long press for 2s to Activate SOS",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+            }
+        }
+    }
+
+
+
+    private fun sendAlarm() {
+        val progressDialog = ProgressDialog(this@Trailblazer).apply {
+            setMessage("Sending SOS...")
+            setCancelable(false)
+            show()
+        }
+        Toast.makeText(
+            this@Trailblazer,
+            "Now sending SOS to the team...",
+            Toast.LENGTH_SHORT
+        ).show()
+        //stopPulsatingAnimation(sosButton)
+        PositionProviderFactory.create(this, object : PositionListener {
+            override fun onPositionUpdate(position: Position) {
+                val preferences =
+                    PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
+
+                position.deviceId = device_id.replace("\\s".toRegex(), "").uppercase()
+
+
+
+                val request = formatRequest(
+                    preferences.getString(MainFragment.KEY_URL, null)!!,
+                    position,
+                    ShortcutActivity.ALARM_SOS
+                )
+                sendRequestAsync(request, object : RequestHandler {
+                    override fun onComplete(success: Boolean) {
+                        progressDialog.dismiss()
+                        if (success) {
+                            showSuccessModal()
+                        } else {
+                            Toast.makeText(
+                                this@Trailblazer,
+                                R.string.status_send_fail,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                })
+            }
+
+            override fun onPositionError(error: Throwable) {
+                progressDialog.dismiss()
+                Toast.makeText(this@Trailblazer, error.message, Toast.LENGTH_LONG).show()
+            }
+        }).requestSingleLocation()
+    }
+
+
+    private fun showSuccessModal() {
+        AlertDialog.Builder(this)
+            .setTitle("SOS Alert")
+            .setMessage("SOS alarm has been sent successfully")
+            .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+
     private fun setupView() {
         connectionStatus = findViewById<TextView>(R.id.connection_status)
         sosButton = findViewById<ImageButton>(R.id.sos)
@@ -207,33 +330,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         updateConnectionOffline()
     }
 
-    private fun setupPreferences() {
-        sharedPreferences = getPreferences(MODE_PRIVATE)
-        alarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val originalIntent = Intent(this, AutostartReceiver::class.java)
-        originalIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-        alarmIntent = PendingIntent.getBroadcast(this, 0, originalIntent, flags)
-
-        if (sharedPreferences.contains(KEY_DEVICE)) {
-            deviceId.text = sharedPreferences.getString(KEY_DEVICE, "")
-        } else {
-            sharedPreferences.edit().putString(KEY_DEVICE, "").apply()
-            deviceId.setText("")
-        }
-
-        device_id = deviceId.text.toString()
-        server_url = getString(R.string.settings_server_url_value)
-        location_accuracy = getString(R.string.settings_location_accuracy_value)
-        positionProvider = PositionProviderFactory.create(this, this)
-    }
-
-    public final fun clockInAndOut(view: View) {
-        Log.d(TAG, "clockInAndOut invoked")
+    fun clockInAndOut(view: View) {
         if (deviceId.text.toString().trim().isNotEmpty() && deviceId.text.toString().trim().isNotBlank()) {
             if (this.onlineStatus) {
                 Log.i(TAG, "User is online. Proceeding to disconnect.")
@@ -248,10 +345,36 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         }
     }
 
-    public final fun settingsClicked(view: View) {
-        Log.d(TAG, "settingsClicked invoked")
-        disconnectUser()
-        Log.i(TAG, "User disconnected successfully. Showing card view.")
+    private fun startPulsatingAnimation(view: View) {
+        val scaleXAnimator = ObjectAnimator.ofFloat(view, "scaleX", 1f, 1.2f, 1f).apply {
+            duration = 600
+            interpolator = LinearInterpolator()
+            repeatCount = ObjectAnimator.INFINITE
+        }
+
+        val scaleYAnimator = ObjectAnimator.ofFloat(view, "scaleY", 1f, 1.2f, 1f).apply {
+            duration = 600
+            interpolator = LinearInterpolator()
+            repeatCount = ObjectAnimator.INFINITE
+        }
+
+        pulsateAnimator = AnimatorSet().apply {
+            playTogether(scaleXAnimator, scaleYAnimator)
+            start()
+        }
+    }
+
+    private fun stopPulsatingAnimation(view: View) {
+        pulsateAnimator?.end()  // Stop and remove all running animations
+        pulsateAnimator = null  // Clear reference
+
+        view.scaleX = 1f  // Reset to normal
+        view.scaleY = 1f
+    }
+
+
+    fun settingsClicked(view: View) {
+        //disconnectUser()
         showCardView()
     }
 
@@ -310,15 +433,13 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         cardView.isVisible = true
     }
 
-    public final fun cancelSettingsClicked(view: View) {
-        Log.d(TAG, "cancelSettingsClicked invoked")
+    fun cancelSettingsClicked(view: View) {
         hideKeyboard()
         cardView.isVisible = false
         Log.i(TAG, "Settings view canceled.")
     }
 
-    public final fun saveSettingsClicked(view: View) {
-        Log.d(TAG, "saveSettingsClicked invoked")
+    fun saveSettingsClicked(view: View) {
         hideKeyboard()
         if (deviceIdText.text.toString().trim().isNotEmpty() && deviceIdText.text.toString().trim().isNotBlank()) {
             try {
@@ -345,6 +466,13 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to hide keyboard: ${e.message}", e)
         }
+        alarmIntent = PendingIntent.getBroadcast(this, 0, originalIntent, flags)
+
+        if (sharedPreferences.contains(KEY_DEVICE)) {
+            deviceId.text = sharedPreferences.getString(KEY_DEVICE, "")
+        } else {
+            sharedPreferences.edit().putString(KEY_DEVICE, "").apply()
+            deviceId.text = ""
         }
 
     private fun showBackgroundLocationDialog(context: Context, onSuccess: () -> Unit) {
@@ -433,23 +561,15 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     }
 
     private fun send(position: Position) {
-        try {
-            position.deviceId = Server_Details.device_id.replace("\\s".toRegex(), "").uppercase()
-            val serverUrl: String = Server_Details.server_url
-            val request = formatRequest(serverUrl, position)
-
-            sendRequestAsync(request, object : RequestHandler {
-                override fun onComplete(success: Boolean) {
-                    if (success) {
-                        Log.i(TAG, "Position data sent successfully.")
-                    } else {
-                        Log.w(TAG, "Failed to send position data.")
-                    }
-                }
-            })
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to send position data: ${e.message}", e)
-        }
+        position.deviceId = device_id.replace("\\s".toRegex(), "").uppercase()
+        val serverUrl: String = server_url
+        val request = formatRequest(serverUrl, position)
+        Log.d(TAG, "Server:$position")
+        sendRequestAsync(request, object : RequestHandler {
+            override fun onComplete(success: Boolean) {
+                Log.d(TAG, "Sent")
+            }
+        })
     }
 
 }

@@ -36,8 +36,10 @@
             <!-- Settings Button -->
             <ImageButton
                 android:id="@+id/sos"
-                android:layout_width="60dp"
-                android:layout_height="60dp"
+                android:layout_width="80dp"
+                android:padding="@dimen/six_dp"
+                android:layout_height="80dp"
+                android:layout_gravity="end"
                 android:background="@android:color/transparent"
                 android:src="@drawable/sos"
                 android:layout_margin="@dimen/eight_dp"
