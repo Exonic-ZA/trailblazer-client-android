@@ -63,7 +63,17 @@
     <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
 
     <!-- enable the performance API by setting a sample-rate, adjust in production env -->
-    <meta-data android:name="io.sentry.traces.sample-rate" android:value="1" />
+    <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="za.co.exonic.trailblazer.pioneer.client.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 </application>
 
 </manifest>
