@@ -111,6 +111,11 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private val CAMERA_REQUEST_CODE = 100
     private lateinit var imageUri: Uri
 
+    private var isSosActive = false
+    private var sosStartTime: Long = 0
+    private var isSuccessModalShown = false
+    private val sosDuration = 2 * 60 * 1000L // 2 minutes in milliseconds
+
     @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState);
