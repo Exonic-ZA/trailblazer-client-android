@@ -183,13 +183,23 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
 
     private fun showConfirmationDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("Confirm Submission")
-            .setMessage("Do you want to submit this image?")
-            .setPositiveButton("Yes") { _, _ -> submitImageMetadata() }
-            .setNegativeButton("No") { dialog, _ -> dialog.dismiss() }
-            .show()
+        ConfirmImageDialog(
+            onRetake = {
+                Toast.makeText(this, "Retake Clicked", Toast.LENGTH_SHORT).show()
+            },
+            onSend = { onComplete ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    submitImageMetadata() // Upload process
+                    withContext(Dispatchers.Main) {
+                        onComplete.invoke() // Hide progress bar & close dialog
+                        Toast.makeText(this@Trailblazer, "Image Uploaded Successfully!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        ).show(supportFragmentManager, "ConfirmImageDialog")
     }
+
+
 
     private fun submitImageMetadata() {
         val metadata = ImageMetadata(
