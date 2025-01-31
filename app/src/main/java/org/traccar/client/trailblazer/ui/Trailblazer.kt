@@ -192,7 +192,6 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     submitImageMetadata() // Upload process
                     withContext(Dispatchers.Main) {
                         onComplete.invoke() // Hide progress bar & close dialog
-                        Toast.makeText(this@Trailblazer, "Image Uploaded Successfully!", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -257,28 +256,32 @@ class Trailblazer : AppCompatActivity(), PositionListener {
             return
         }
 
-        // Compress the image before uploading
         val compressedFile = compressImage(filePath)
-
         val requestBody = compressedFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val response = apiService.uploadImage(imageId, requestBody)
+
                 withContext(Dispatchers.Main) {
-                    if (response.isSuccessful) {
+                    if (response.isSuccessful && response.code() in 200..299) {
                         showToast("Image uploaded successfully!")
                     } else {
-                        showToast("Image upload failed!}")
+                        val errorBody = response.errorBody()?.string() ?: "Unknown error"
+                        showToast("Image upload failed! Error: $errorBody")
+                        Log.e("UploadError", "Server response: $errorBody")
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     showToast("Error: ${e.message}")
+                    Log.e("UploadException", "Upload failed", e)
                 }
             }
         }
     }
+
+
 
 
     private fun showToast(s: String) {
