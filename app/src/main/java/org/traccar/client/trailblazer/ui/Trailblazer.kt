@@ -107,6 +107,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     private var onlineStatus = false
 
+    private var currentPosition: Position? = null
     private val CAMERA_REQUEST_CODE = 100
     private lateinit var imageUri: Uri
 
@@ -127,13 +128,12 @@ class Trailblazer : AppCompatActivity(), PositionListener {
             Sentry.captureException(e);
         }
 
-
         setupView();
-        setOnclickListeners()
-        longPressSosButtonSetup();
         setupPreferences();
+        setOnclickListeners()
         setupLogsListener();
         checkBatteryOptimization();
+        longPressSosButtonSetup();
 
     }
 
@@ -176,20 +176,30 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                 Log.e("API_CALL", "Captured image file does not exist!")
                 return
             }
-            showConfirmationDialog()
+
+            val imageFile = prepareImageFile(filePath) // Convert filePath to MultipartBody.Part
+            showConfirmationDialog(deviceId.text.toString(), imageFile)
         }
+    }
+
+    private fun prepareImageFile(filePath: String): MultipartBody.Part {
+        val file = File(filePath)
+        val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
+        return MultipartBody.Part.createFormData("file", file.name, requestFile)
     }
 
 
 
-    private fun showConfirmationDialog() {
+
+
+    private fun showConfirmationDialog(deviceSerial: String, imageFile: MultipartBody.Part) {
         ConfirmImageDialog(
             onRetake = {
                 Toast.makeText(this, "Retake Clicked", Toast.LENGTH_SHORT).show()
             },
             onSend = { onComplete ->
                 CoroutineScope(Dispatchers.IO).launch {
-                    submitImageMetadata() // Upload process
+                    submitImageMetadata(deviceSerial, imageFile) // Pass required parameters
                     withContext(Dispatchers.Main) {
                         onComplete.invoke() // Hide progress bar & close dialog
                     }
@@ -200,32 +210,52 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
 
 
-    private fun submitImageMetadata() {
-        val metadata = ImageMetadata(
-            fileName = "tv",
-            fileExtension = "jpg",
-            deviceId = "1",
-            latitude = -26.0090179,
-            longitude = 28.0770782
-        )
 
+    private fun submitImageMetadata(deviceSerial: String, imageFile: MultipartBody.Part) {
         val apiService = ApiClient.create(this)
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val response = apiService.uploadMetadata(metadata)
-                if (response.isSuccessful) {
-                    val imageId = response.body()?.id ?: return@launch
-                    Log.d("API_CALL", "Metadata uploaded. Image ID: $imageId")
-                    uploadImage(imageId)
+                // Step 1: Fetch device ID using the serial number
+                val deviceResponse = apiService.getDeviceBySerial(deviceSerial)
+                if (!deviceResponse.isSuccessful || deviceResponse.body().isNullOrEmpty()) {
+                    Log.e("API_CALL", "Device not found for serial: $deviceSerial")
+                    return@launch
+                }
+
+                val deviceId = deviceResponse.body()?.first()?.id ?: return@launch
+
+                // Step 2: Submit metadata with the retrieved device ID
+                val metadata = ImageMetadata(
+                    fileName = "tv",
+                    fileExtension = "jpg",
+                    deviceId = deviceId.toString(),
+                    latitude = currentPosition?.latitude ?: 0.00,
+                    longitude = currentPosition?.longitude ?: 0.00
+                )
+
+                val metadataResponse = apiService.uploadMetadata(metadata)
+                if (!metadataResponse.isSuccessful) {
+                    Log.e("API_CALL", "Metadata upload failed: ${metadataResponse.errorBody()?.string()}")
+                    return@launch
+                }
+
+                val imageId = metadataResponse.body()?.id ?: return@launch
+                Log.d("API_CALL", "Metadata uploaded. Image ID: $imageId")
+
+                // Step 3: Upload the actual image
+                val imageUploadResponse = apiService.uploadImage(imageId, imageFile.body!!)
+                if (imageUploadResponse.isSuccessful) {
+                    Log.d("API_CALL", "Image uploaded successfully for ID: $imageId")
                 } else {
-                    Log.e("API_CALL", "Metadata upload failed: ${response.errorBody()?.string()}")
+                    Log.e("API_CALL", "Image upload failed: ${imageUploadResponse.errorBody()?.string()}")
                 }
             } catch (e: Exception) {
                 Log.e("API_CALL", "Error: ${e.message}")
             }
         }
     }
+
 
 
     private fun compressImage(filePath: String): File {
@@ -359,6 +389,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
             // Permissions granted, proceed with location updates
             updateConnectionOnline()
             positionProvider.startUpdates()
+            positionProvider.requestSingleLocation()
             startTrackingService(checkPermission = true, initialPermission = false)
             Log.i(TAG, "User connected successfully.")
         }
@@ -493,6 +524,8 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
                     position.deviceId = device_id?.replace("\\s".toRegex(), "")?.uppercase() ?: "UNKNOWN"
 
+                    currentPosition = position
+
                     Sentry.addBreadcrumb("Position update received: $position", "GPS")
 
                     val request = formatRequest(url, position, ShortcutActivity.ALARM_SOS)
@@ -556,7 +589,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         clockInImage = findViewById<ImageView>(R.id.clock_in_image)
         clockInText = findViewById<TextView>(R.id.clock_in_text)
         settingsButton = findViewById<ImageButton>(R.id.settings_button)
-        photoCaptureButton = findViewById<ImageButton>(R.id.btn_photo)
+        photoCaptureButton = findViewById(R.id.btn_photo)
 
         cardView = findViewById<CardView>(R.id.settings_view)
         deviceIdText = findViewById<EditText>(R.id.settings_device_id)
@@ -814,6 +847,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         handler.postDelayed({
             if (onlineStatus) {
                 Log.i(TAG, "Sending position update...")
+                currentPosition = position
                 send(position)
             }
         }, RETRY_DELAY.toLong())

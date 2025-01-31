@@ -63,7 +63,7 @@
     <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
 
     <!-- enable the performance API by setting a sample-rate, adjust in production env -->
-    <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
+    <meta-data android:name="io.sentry.traces.sample-rate" android:value="1" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
