@@ -49,6 +49,19 @@
                 android:scaleType="fitCenter"
                 android:src="@drawable/sos"
                 tools:ignore="ContentDescription" />
+
+            <ImageButton
+                android:id="@+id/settings_button"
+                android:layout_width="82dp"
+                android:layout_height="79dp"
+                android:layout_gravity="end"
+                android:layout_margin="@dimen/eight_dp"
+                android:background="@drawable/rounded_button"
+                android:onClick="settingsClicked"
+                android:padding="20dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/settings"
+                tools:ignore="ContentDescription,UsingOnClickInXml" />
         </LinearLayout>
 
         <!-- Logo and Device ID Section -->
@@ -168,8 +181,9 @@
                 android:visibility="gone"
                 tools:ignore="ContentDescription,UsingOnClickInXml" />
             <!-- Settings Button -->
+
             <ImageButton
-                android:id="@+id/settings_button"
+                android:id="@+id/btn_photo"
                 android:layout_width="50dp"
                 android:layout_height="50dp"
                 android:layout_margin="@dimen/eight_dp"
@@ -177,7 +191,7 @@
                 android:onClick="settingsClicked"
                 android:padding="@dimen/twelve_dp"
                 android:scaleType="fitCenter"
-                android:src="@drawable/settings"
+                android:src="@drawable/ic_photo"
                 tools:ignore="ContentDescription,UsingOnClickInXml" />
         </LinearLayout>
     </LinearLayout>
@@ -190,6 +204,7 @@
         app:cardCornerRadius="@dimen/twelve_dp"
         app:cardElevation="@dimen/twelve_dp"
         android:layout_margin="@dimen/twelve_dp"
+        android:visibility="gone"
         app:cardBackgroundColor="@color/white"
         app:cardMaxElevation="@dimen/twelve_dp"
         app:cardPreventCornerOverlap="true"
