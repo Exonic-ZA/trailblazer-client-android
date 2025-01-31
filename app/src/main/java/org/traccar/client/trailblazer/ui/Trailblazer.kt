@@ -4,6 +4,7 @@ import android.Manifest
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.ProgressDialog
@@ -11,13 +12,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.location.LocationManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.provider.MediaStore
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
@@ -29,18 +34,17 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.preference.PreferenceManager
-import com.google.android.material.snackbar.Snackbar
-import com.google.firebase.FirebaseApp
+import com.example.utils.AuthHelper
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import org.traccar.client.Position
 import org.traccar.client.PositionProviderFactory
@@ -58,6 +62,21 @@ import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.server_url
 import org.traccar.client.trailblazer.util.BatteryOptimizationHelper
 import io.sentry.Sentry
 import io.sentry.SentryLevel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import org.traccar.client.trailblazer.api.ApiClient
+import org.traccar.client.trailblazer.data.database.ImageMetadata
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 class Trailblazer : AppCompatActivity(), PositionListener {
@@ -68,6 +87,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private lateinit var clockInImage: ImageView
     private lateinit var clockInText: TextView
     private lateinit var settingsButton: ImageButton
+    private lateinit var photoCaptureButton: ImageButton
 
     private lateinit var cardView: CardView
     private lateinit var deviceIdText: EditText
@@ -87,11 +107,17 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     private var onlineStatus = false
 
+    private val CAMERA_REQUEST_CODE = 100
+    private lateinit var imageUri: Uri
+
+    @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState);
 
         Sentry.addBreadcrumb("Trailblazer onCreate", "Lifecycle");
         Sentry.captureMessage("Trailblazer activity created", SentryLevel.INFO);
+        //TODO: Improve better security of creds
+        AuthHelper.saveCredentials(this, "system@trailblazer.internal", "Babbling+Stomp+Bottling8+Payroll")
 
         try {
             enableEdgeToEdge();
@@ -101,12 +127,175 @@ class Trailblazer : AppCompatActivity(), PositionListener {
             Sentry.captureException(e);
         }
 
+
         setupView();
+        setOnclickListeners()
         longPressSosButtonSetup();
         setupPreferences();
         setupLogsListener();
         checkBatteryOptimization();
+
     }
+
+    private fun setOnclickListeners() {
+        photoCaptureButton.setOnClickListener {
+            val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            if (takePictureIntent.resolveActivity(packageManager) != null) {
+                val photoFile = createImageFile()
+                photoFile?.let {
+                    imageUri = FileProvider.getUriForFile(
+                        this,
+                        "${packageName}.provider",
+                        it
+                    )
+                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri)
+                    startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE)
+                }
+            }
+        }
+    }
+
+    // Create image file
+    private fun createImageFile(): File? {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+
+        // Ensure the directory exists
+        storageDir?.mkdirs()
+
+        return File.createTempFile("IMG_${timeStamp}_", ".jpg", storageDir)
+    }
+
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == CAMERA_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            val filePath = getRealPathFromURI(imageUri)
+            if (filePath == null || !File(filePath).exists()) {
+                Log.e("API_CALL", "Captured image file does not exist!")
+                return
+            }
+            showConfirmationDialog()
+        }
+    }
+
+
+
+    private fun showConfirmationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Confirm Submission")
+            .setMessage("Do you want to submit this image?")
+            .setPositiveButton("Yes") { _, _ -> submitImageMetadata() }
+            .setNegativeButton("No") { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+    private fun submitImageMetadata() {
+        val metadata = ImageMetadata(
+            fileName = "tv",
+            fileExtension = "jpg",
+            deviceId = "1",
+            latitude = -26.0090179,
+            longitude = 28.0770782
+        )
+
+        val apiService = ApiClient.create(this)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = apiService.uploadMetadata(metadata)
+                if (response.isSuccessful) {
+                    val imageId = response.body()?.id ?: return@launch
+                    Log.d("API_CALL", "Metadata uploaded. Image ID: $imageId")
+                    uploadImage(imageId)
+                } else {
+                    Log.e("API_CALL", "Metadata upload failed: ${response.errorBody()?.string()}")
+                }
+            } catch (e: Exception) {
+                Log.e("API_CALL", "Error: ${e.message}")
+            }
+        }
+    }
+
+
+    private fun compressImage(filePath: String): File {
+        val file = File(filePath)
+        val bitmap = BitmapFactory.decodeFile(filePath)
+
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream) // Compress to 80% quality
+
+        val compressedFile = File(file.parent, "compressed_${file.name}")
+        FileOutputStream(compressedFile).use { fos ->
+            fos.write(outputStream.toByteArray())
+        }
+
+        return compressedFile
+    }
+
+    private fun uploadImage(imageId: Int) {
+        val apiService = ApiClient.create(this)
+        val filePath = getRealPathFromURI(imageUri) ?: run {
+            showToast("Error: Unable to retrieve file path")
+            return
+        }
+
+        val file = File(filePath)
+        if (!file.exists()) {
+            showToast("Error: File does not exist")
+            return
+        }
+
+        // Compress the image before uploading
+        val compressedFile = compressImage(filePath)
+
+        val requestBody = compressedFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = apiService.uploadImage(imageId, requestBody)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        showToast("Image uploaded successfully!")
+                    } else {
+                        showToast("Image upload failed!}")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    showToast("Error: ${e.message}")
+                }
+            }
+        }
+    }
+
+
+    private fun showToast(s: String) {
+        Toast.makeText(this, s, Toast.LENGTH_LONG).show()
+    }
+
+
+    private fun getRealPathFromURI(uri: Uri): String? {
+        val file = File(cacheDir, "temp_image.jpg") // Create a temp file
+        try {
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                file.outputStream().use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            }
+            return file.absolutePath // Return the absolute path of the copied file
+        } catch (e: Exception) {
+            Log.e("API_CALL", "Error getting real path: ${e.message}")
+        }
+        return null
+    }
+
+
+
+
+
+
 
     private fun checkBatteryOptimization() {
 
@@ -354,6 +543,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         clockInImage = findViewById<ImageView>(R.id.clock_in_image)
         clockInText = findViewById<TextView>(R.id.clock_in_text)
         settingsButton = findViewById<ImageButton>(R.id.settings_button)
+        photoCaptureButton = findViewById<ImageButton>(R.id.btn_photo)
 
         cardView = findViewById<CardView>(R.id.settings_view)
         deviceIdText = findViewById<EditText>(R.id.settings_device_id)
