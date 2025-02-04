@@ -109,7 +109,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     private var currentPosition: Position? = null
     private val CAMERA_REQUEST_CODE = 100
-    private lateinit var imageUri: Uri
+    private var imageUri: Uri? = null
 
     private var isSosActive = false
     private var sosStartTime: Long = 0
@@ -123,7 +123,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         Sentry.addBreadcrumb("Trailblazer onCreate", "Lifecycle");
         Sentry.captureMessage("Trailblazer activity created", SentryLevel.INFO);
         //TODO: Improve better security of creds
-        AuthHelper.saveCredentials(this, "system@trailblazer.internal", "Babbling+Stomp+Bottling8+Payroll")
+       // AuthHelper.saveCredentials(this, "system@trailblazer.internal", "Babbling+Stomp+Bottling8+Payroll")
 
         try {
             enableEdgeToEdge();
@@ -171,19 +171,23 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         return File.createTempFile("IMG_${timeStamp}_", ".jpg", storageDir)
     }
 
-
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
         if (requestCode == CAMERA_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
-            val filePath = getRealPathFromURI(imageUri)
-            if (filePath == null || !File(filePath).exists()) {
-                Log.e("API_CALL", "Captured image file does not exist!")
-                return
-            }
+            // Ensure imageUri is not null before accessing it
+            imageUri?.let { uri ->
+                val filePath = getRealPathFromURI(uri)
+                if (filePath == null || !File(filePath).exists()) {
+                    Log.e("API_CALL", "Captured image file does not exist!")
+                    return
+                }
 
-            val imageFile = prepareImageFile(filePath) // Convert filePath to MultipartBody.Part
-            showConfirmationDialog(deviceId.text.toString(), imageFile)
+                val imageFile = prepareImageFile(filePath) // Convert filePath to MultipartBody.Part
+                showConfirmationDialog(deviceId.text.toString(), imageFile)
+            } ?: run {
+                Log.e("API_CALL", "imageUri is null!")
+            }
         }
     }
 
@@ -192,11 +196,6 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
         return MultipartBody.Part.createFormData("file", file.name, requestFile)
     }
-
-
-
-
-
     private fun showConfirmationDialog(deviceSerial: String, imageFile: MultipartBody.Part) {
         ConfirmImageDialog(
             onRetake = {
@@ -212,9 +211,6 @@ class Trailblazer : AppCompatActivity(), PositionListener {
             }
         ).show(supportFragmentManager, "ConfirmImageDialog")
     }
-
-
-
 
     private fun submitImageMetadata(deviceSerial: String, imageFile: MultipartBody.Part) {
         val apiService = ApiClient.create(this)
@@ -261,68 +257,9 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         }
     }
 
-
-
-    private fun compressImage(filePath: String): File {
-        val file = File(filePath)
-        val bitmap = BitmapFactory.decodeFile(filePath)
-
-        val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream) // Compress to 80% quality
-
-        val compressedFile = File(file.parent, "compressed_${file.name}")
-        FileOutputStream(compressedFile).use { fos ->
-            fos.write(outputStream.toByteArray())
-        }
-
-        return compressedFile
-    }
-
-    private fun uploadImage(imageId: Int) {
-        val apiService = ApiClient.create(this)
-        val filePath = getRealPathFromURI(imageUri) ?: run {
-            showToast("Error: Unable to retrieve file path")
-            return
-        }
-
-        val file = File(filePath)
-        if (!file.exists()) {
-            showToast("Error: File does not exist")
-            return
-        }
-
-        val compressedFile = compressImage(filePath)
-        val requestBody = compressedFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val response = apiService.uploadImage(imageId, requestBody)
-
-                withContext(Dispatchers.Main) {
-                    if (response.isSuccessful && response.code() in 200..299) {
-                        showToast("Image uploaded successfully!")
-                    } else {
-                        val errorBody = response.errorBody()?.string() ?: "Unknown error"
-                        showToast("Image upload failed! Error: $errorBody")
-                        Log.e("UploadError", "Server response: $errorBody")
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    showToast("Error: ${e.message}")
-                    Log.e("UploadException", "Upload failed", e)
-                }
-            }
-        }
-    }
-
-
-
-
     private fun showToast(s: String) {
         Toast.makeText(this, s, Toast.LENGTH_LONG).show()
     }
-
 
     private fun getRealPathFromURI(uri: Uri): String? {
         val file = File(cacheDir, "temp_image.jpg") // Create a temp file
@@ -338,11 +275,6 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         }
         return null
     }
-
-
-
-
-
 
 
     private fun checkBatteryOptimization() {
