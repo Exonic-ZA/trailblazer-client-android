@@ -55,17 +55,7 @@
         <meta-data android:name="io.sentry.attach-screenshot" android:value="true" />
         <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
         <meta-data android:name="io.sentry.traces.sample-rate" android:value="1" />
-
-        <!-- FileProvider configuration -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="za.co.exonic.trailblazer.pioneer.client.provider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="androidx.core.content.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
+  
     </application>
 
 </manifest>
