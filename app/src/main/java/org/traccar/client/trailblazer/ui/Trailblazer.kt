@@ -431,84 +431,89 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
 
     private fun sendAlarm() {
-        try {
-            Sentry.captureMessage("SOS alarm triggered", SentryLevel.INFO)
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                Sentry.captureMessage("SOS alarm triggered", SentryLevel.INFO)
 
-            val progressDialog = ProgressDialog(this@Trailblazer).apply {
-                setMessage("Sending SOS...")
-                setCancelable(false)
-                show()
-            }
+                val progressDialog = ProgressDialog(this@Trailblazer).apply {
+                    setMessage("Sending SOS...")
+                    setCancelable(false)
+                    show()
+                }
 
-            Toast.makeText(
-                this@Trailblazer,
-                "Now sending SOS to the team...",
-                Toast.LENGTH_SHORT
-            ).show()
+                Toast.makeText(this@Trailblazer, "Now sending SOS to the team...", Toast.LENGTH_SHORT).show()
 
-            val positionProvider = PositionProviderFactory.create(this, object : PositionListener {
-                override fun onPositionUpdate(position: Position) {
-                    progressDialog.dismiss()
+                val positionProvider = PositionProviderFactory.create(this@Trailblazer, object : PositionListener {
+                    override fun onPositionUpdate(position: Position) {
+                        CoroutineScope(Dispatchers.Main).launch {
+                            //progressDialog.dismiss() // Dismiss on the main thread
 
-                    if (position == null) {
-                        Sentry.captureMessage("Received null position in onPositionUpdate", SentryLevel.ERROR)
-                        Toast.makeText(this@Trailblazer, "Failed to get location", Toast.LENGTH_LONG).show()
-                        return
-                    }
+                            if (position == null) {
+                                Sentry.captureMessage("Received null position in onPositionUpdate", SentryLevel.ERROR)
+                                Toast.makeText(this@Trailblazer, "Failed to get location", Toast.LENGTH_LONG).show()
+                                return@launch
+                            }
 
-                    val preferences = PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
-                    val url = server_url
+                            val preferences = PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
+                            val url = server_url
 
-                    if (url.isNullOrEmpty()) {
-                        Sentry.captureMessage("SOS failed: URL is missing from preferences", SentryLevel.ERROR)
-                        Toast.makeText(this@Trailblazer, "Missing SOS server URL", Toast.LENGTH_LONG).show()
-                        return
-                    }
+                            if (url.isNullOrEmpty()) {
+                                Sentry.captureMessage("SOS failed: URL is missing from preferences", SentryLevel.ERROR)
+                                Toast.makeText(this@Trailblazer, "Missing SOS server URL", Toast.LENGTH_LONG).show()
+                                return@launch
+                            }
 
-                    position.deviceId = device_id?.replace("\\s".toRegex(), "")?.uppercase() ?: "UNKNOWN"
+                            position.deviceId = device_id?.replace("\\s".toRegex(), "")?.uppercase() ?: "UNKNOWN"
+                            currentPosition = position
+                            Sentry.addBreadcrumb("Position update received: $position", "GPS")
 
-                    currentPosition = position
+                            val request = formatRequest(url, position, ShortcutActivity.ALARM_SOS)
 
-                    Sentry.addBreadcrumb("Position update received: $position", "GPS")
-
-                    val request = formatRequest(url, position, ShortcutActivity.ALARM_SOS)
-                    sendRequestAsync(request, object : RequestHandler {
-                        override fun onComplete(success: Boolean) {
-                            if (success) {
-                                Sentry.captureMessage("SOS sent successfully", SentryLevel.INFO)
-                                showSuccessModal()
-                            } else {
-                                Sentry.captureMessage("SOS send failed", SentryLevel.ERROR)
-                                Toast.makeText(
-                                    this@Trailblazer,
-                                    R.string.status_send_fail,
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            // Perform request on IO dispatcher
+                            withContext(Dispatchers.IO) {
+                                sendRequestAsync(request, object : RequestHandler {
+                                    override fun onComplete(success: Boolean) {
+                                        CoroutineScope(Dispatchers.Main).launch {
+                                            if (success) {
+                                                progressDialog.dismiss()
+                                                Sentry.captureMessage("SOS sent successfully", SentryLevel.INFO)
+                                                showSuccessModal()
+                                            } else {
+                                                progressDialog.dismiss()
+                                                Sentry.captureMessage("SOS send failed", SentryLevel.ERROR)
+                                                Toast.makeText(this@Trailblazer, R.string.status_send_fail, Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                })
                             }
                         }
-                    })
-                }
+                    }
 
-                override fun onPositionError(error: Throwable) {
+                    override fun onPositionError(error: Throwable) {
+                        CoroutineScope(Dispatchers.Main).launch {
+                            progressDialog.dismiss()
+                            val errorMsg = error.message ?: "Unknown location error"
+                            Toast.makeText(this@Trailblazer, errorMsg, Toast.LENGTH_LONG).show()
+                            Sentry.captureException(error)
+                        }
+                    }
+                })
+
+                if (positionProvider != null) {
+                    positionProvider.requestSingleLocation()
+                } else {
                     progressDialog.dismiss()
-                    val errorMsg = error.message ?: "Unknown location error"
-                    Toast.makeText(this@Trailblazer, errorMsg, Toast.LENGTH_LONG).show()
-                    Sentry.captureException(error)
+                    Sentry.captureMessage("PositionProviderFactory returned null", SentryLevel.ERROR)
+                    Toast.makeText(this@Trailblazer, "Failed to initialize GPS", Toast.LENGTH_LONG).show()
                 }
-            })
 
-            if (positionProvider != null) {
-                positionProvider.requestSingleLocation()
-            } else {
-                progressDialog.dismiss()
-                Sentry.captureMessage("PositionProviderFactory returned null", SentryLevel.ERROR)
-                Toast.makeText(this@Trailblazer, "Failed to initialize GPS", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Sentry.captureException(e)
             }
-
-        } catch (e: Exception) {
-            Sentry.captureException(e)
         }
     }
+
 
 
 
