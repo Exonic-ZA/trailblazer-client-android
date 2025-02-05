@@ -31,6 +31,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -69,6 +70,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.traccar.client.trailblazer.api.ApiClient
 import org.traccar.client.trailblazer.data.database.ImageMetadata
 import java.io.ByteArrayOutputStream
@@ -103,18 +105,11 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private var isLongPressed = false
     private var longPressRunnable: Runnable? = null
     private var pulsateAnimator: AnimatorSet? = null
-    private lateinit var remoteConfig: FirebaseRemoteConfig
 
     private var onlineStatus = false
 
     private var currentPosition: Position? = null
     private val CAMERA_REQUEST_CODE = 100
-    private var imageUri: Uri? = null
-
-    private var isSosActive = false
-    private var sosStartTime: Long = 0
-    private var isSuccessModalShown = false
-    private val sosDuration = 2 * 60 * 1000L // 2 minutes in milliseconds
 
     @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -146,56 +141,35 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         photoCaptureButton.setOnClickListener {
             val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             if (takePictureIntent.resolveActivity(packageManager) != null) {
-                val photoFile = createImageFile()
-                photoFile?.let {
-                    imageUri = FileProvider.getUriForFile(
-                        this,
-                        "${packageName}.provider",
-                        it
-                    )
-                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri)
-                    startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE)
-                }
+                startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE)
             }
         }
-    }
-
-    // Create image file
-    private fun createImageFile(): File? {
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-
-        // Ensure the directory exists
-        storageDir?.mkdirs()
-
-        return File.createTempFile("IMG_${timeStamp}_", ".jpg", storageDir)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
         if (requestCode == CAMERA_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
-            // Ensure imageUri is not null before accessing it
-            imageUri?.let { uri ->
-                val filePath = getRealPathFromURI(uri)
-                if (filePath == null || !File(filePath).exists()) {
-                    Log.e("API_CALL", "Captured image file does not exist!")
-                    return
-                }
-
-                val imageFile = prepareImageFile(filePath) // Convert filePath to MultipartBody.Part
+            val imageBitmap = data?.extras?.get("data") as? Bitmap
+            if (imageBitmap != null) {
+                val imageFile = prepareImageFile(imageBitmap) // Convert Bitmap to Multipart
                 showConfirmationDialog(deviceId.text.toString(), imageFile)
-            } ?: run {
-                Log.e("API_CALL", "imageUri is null!")
+            } else {
+                Log.e("API_CALL", "Failed to capture image!")
             }
         }
     }
 
-    private fun prepareImageFile(filePath: String): MultipartBody.Part {
-        val file = File(filePath)
-        val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
-        return MultipartBody.Part.createFormData("file", file.name, requestFile)
+    // Convert Bitmap to Multipart
+    private fun prepareImageFile(bitmap: Bitmap): MultipartBody.Part {
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+        val byteArray = stream.toByteArray()
+
+        val requestFile = byteArray.toRequestBody("image/jpeg".toMediaTypeOrNull())
+        return MultipartBody.Part.createFormData("file", "image.jpg", requestFile)
     }
+
     private fun showConfirmationDialog(deviceSerial: String, imageFile: MultipartBody.Part) {
         ConfirmImageDialog(
             onRetake = {
@@ -215,48 +189,80 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private fun submitImageMetadata(deviceSerial: String, imageFile: MultipartBody.Part) {
         val apiService = ApiClient.create(this)
 
-        CoroutineScope(Dispatchers.IO).launch {
+        // Ensure ProgressDialog is created and shown on the main thread
+        CoroutineScope(Dispatchers.Main).launch {
+            val progressDialog = ProgressDialog(this@Trailblazer).apply {
+                setMessage("Uploading photo...")
+                setCancelable(false)
+                show() // Show progress dialog on the main thread
+            }
+
             try {
-                // Step 1: Fetch device ID using the serial number
-                val deviceResponse = apiService.getDeviceBySerial(deviceSerial)
-                if (!deviceResponse.isSuccessful || deviceResponse.body().isNullOrEmpty()) {
-                    Log.e("API_CALL", "Device not found for serial: $deviceSerial")
-                    return@launch
-                }
+                withContext(Dispatchers.IO) {
+                    val deviceResponse = apiService.getDeviceBySerial(deviceSerial)
+                    if (!deviceResponse.isSuccessful || deviceResponse.body().isNullOrEmpty()) {
+                        showResultDialog(false, "Device not found.", progressDialog)
+                        return@withContext
+                    }
 
-                val deviceId = deviceResponse.body()?.first()?.id ?: return@launch
+                    val deviceId = deviceResponse.body()?.first()?.id ?: return@withContext
 
-                // Step 2: Submit metadata with the retrieved device ID
-                val metadata = ImageMetadata(
-                    fileName = "tv",
-                    fileExtension = "jpg",
-                    deviceId = deviceId.toString(),
-                    latitude = currentPosition?.latitude ?: 0.00,
-                    longitude = currentPosition?.longitude ?: 0.00
-                )
+                    val metadata = ImageMetadata(
+                        fileName = "tv",
+                        fileExtension = "jpg",
+                        deviceId = deviceId.toString(),
+                        latitude = currentPosition?.latitude ?: 0.00,
+                        longitude = currentPosition?.longitude ?: 0.00
+                    )
 
-                val metadataResponse = apiService.uploadMetadata(metadata)
-                if (!metadataResponse.isSuccessful) {
-                    Log.e("API_CALL", "Metadata upload failed: ${metadataResponse.errorBody()?.string()}")
-                    return@launch
-                }
+                    val metadataResponse = apiService.uploadMetadata(metadata)
+                    if (!metadataResponse.isSuccessful) {
+                        showResultDialog(false, "Failed to upload metadata.", progressDialog)
+                        return@withContext
+                    }
 
-                val imageId = metadataResponse.body()?.id ?: return@launch
-                Log.d("API_CALL", "Metadata uploaded. Image ID: $imageId")
+                    val imageId = metadataResponse.body()?.id ?: return@withContext
+                    val imageUploadResponse = apiService.uploadImage(imageId, imageFile.body!!)
 
-                // Step 3: Upload the actual image
-                val imageUploadResponse = apiService.uploadImage(imageId, imageFile.body!!)
-                if (imageUploadResponse.isSuccessful) {
-                    Log.d("API_CALL", "Image uploaded successfully for ID: $imageId")
-                } else {
-                    Log.e("API_CALL", "Image upload failed: ${imageUploadResponse.errorBody()?.string()}")
+                    if (imageUploadResponse.isSuccessful) {
+                        showResultDialog(true, "Photo uploaded successfully!", progressDialog)
+                    } else {
+                        showResultDialog(false, "Failed to upload photo.", progressDialog)
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("API_CALL", "Error: ${e.message}")
+                Sentry.captureException(e)
+                showResultDialog(false, "Something went wrong!", progressDialog)
             }
         }
     }
 
+    // Helper function to dismiss progress dialog and show alert dialog
+    private suspend fun showResultDialog(isSuccess: Boolean, message: String, progressDialog: ProgressDialog) {
+        withContext(Dispatchers.Main) {
+            progressDialog.dismiss() // Ensure dialog is dismissed on the main thread
+
+            AlertDialog.Builder(this@Trailblazer)
+                .setTitle(if (isSuccess) "Success" else "Error")
+                .setMessage(message)
+                .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+                .show()
+        }
+    }
+
+
+
+
+
+    private fun createImageFile(): File? {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+
+        // Ensure the directory exists
+        storageDir?.mkdirs()
+
+        return File.createTempFile("IMG_${timeStamp}_", ".jpg", storageDir)
+    }
     private fun showToast(s: String) {
         Toast.makeText(this, s, Toast.LENGTH_LONG).show()
     }
@@ -532,7 +538,6 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         deviceIdText = findViewById<EditText>(R.id.settings_device_id)
         serverUrlLabel = findViewById<EditText>(R.id.settings_server_url)
         locationAccuracyLabel = findViewById<EditText>(R.id.settings_location_accuracy)
-
         cardView.isVisible = false
 
         updateConnectionOffline()

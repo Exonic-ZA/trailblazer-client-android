@@ -189,7 +189,6 @@
                 android:layout_height="50dp"
                 android:layout_margin="@dimen/eight_dp"
                 android:background="@drawable/rounded_button"
-                android:onClick="settingsClicked"
                 android:padding="@dimen/twelve_dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_photo"
