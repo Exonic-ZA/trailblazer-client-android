@@ -8,7 +8,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
-    private const val BASE_URL = "https://pathfinder.sbmkinetics.co.za/"
+    private const val BASE_URL = "https://trailblazer.sbmkinetics.co.za/"
     //TODO: Move to a secure space. Ran out of time.
     private const val USERNAME = "system@trailblazer.internal"
     private const val PASSWORD = "Babbling+Stomp+Bottling8+Payroll"

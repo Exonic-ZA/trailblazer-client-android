@@ -2,7 +2,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
-    private const val BASE_URL = "https://pathfinder.sbmkinetics.co.za/"
+    private const val BASE_URL = "https://trailblazer.sbmkinetics.co.za/"
 
     val apiService: ApiService by lazy {
         Retrofit.Builder()
