@@ -62,6 +62,18 @@
                 android:scaleType="fitCenter"
                 android:src="@drawable/settings"
                 tools:ignore="ContentDescription,UsingOnClickInXml" />
+
+            <ImageButton
+                android:id="@+id/info_button"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_gravity="end"
+                android:layout_margin="@dimen/eight_dp"
+                android:src="@drawable/ic_info"
+
+                android:scaleType="fitCenter"
+                android:background="@color/white"
+                tools:ignore="ContentDescription" />
         </LinearLayout>
 
         <!-- Logo and Device ID Section -->

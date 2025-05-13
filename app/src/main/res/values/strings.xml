@@ -1,6 +1,16 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <resources>
     <string name="app_name">Trailblazer Pioneer - Client</string>
+
+    <!-- Add these to your res/values/strings.xml file -->
+    <string name="disclaimer_title">Disclaimer</string>
+    <string name="disclaimer_text">This app collects and stores your precise location data even when the app is closed or not in use to enable:</string>
+    <string name="disclaimer_point1">Real-time tracking of delivery vehicles and sales personnel</string>
+    <string name="disclaimer_point2">SOS emergency response functionality</string>
+    <string name="disclaimer_point3">Route optimization and performance analysis</string>
+    <string name="disclaimer_details">Your location is only tracked when tracking is manually enabled. The tracking status is always clearly visible in the app.\n\nLocation data is securely stored and used solely for business operations purposes. It is never sold to third parties for marketing.\n\nYou can disable tracking at any time through the app.</string>
+    <string name="disclaimer_accept">I UNDERSTAND AND CONSENT</string>
+
     <string name="status_connected">● Connected</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="clock_in">Clock in</string>

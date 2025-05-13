@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
@@ -27,10 +28,14 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning,UnusedAttribute">
         <activity
+            android:name=".trailblazer.ui.AboutUsActivity"
+            android:exported="false" />
+        <activity
             android:name=".trailblazer.ui.Trailblazer"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -47,15 +52,22 @@
         <service
             android:name=".trailblazer.service.TrackingService"
             android:exported="false"
-            android:foregroundServiceType="location" />
-
-        <!-- Required: set your sentry.io project identifier (DSN) -->
-        <meta-data android:name="io.sentry.dsn" android:value="https://26fc78c00b1a4184482550c5d783f022@o4504597940404224.ingest.us.sentry.io/4508731622031360" />
-        <meta-data android:name="io.sentry.traces.user-interaction.enable" android:value="true" />
-        <meta-data android:name="io.sentry.attach-screenshot" android:value="true" />
-        <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
-        <meta-data android:name="io.sentry.traces.sample-rate" android:value="1" />
-  
+            android:foregroundServiceType="location" /> <!-- Required: set your sentry.io project identifier (DSN) -->
+        <meta-data
+            android:name="io.sentry.dsn"
+            android:value="https://26fc78c00b1a4184482550c5d783f022@o4504597940404224.ingest.us.sentry.io/4508731622031360" />
+        <meta-data
+            android:name="io.sentry.traces.user-interaction.enable"
+            android:value="true" />
+        <meta-data
+            android:name="io.sentry.attach-screenshot"
+            android:value="true" />
+        <meta-data
+            android:name="io.sentry.attach-view-hierarchy"
+            android:value="true" />
+        <meta-data
+            android:name="io.sentry.traces.sample-rate"
+            android:value="1" />
     </application>
 
 </manifest>

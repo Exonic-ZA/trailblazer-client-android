@@ -14,6 +14,8 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -26,8 +28,10 @@ import android.provider.MediaStore
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -105,6 +109,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private var isLongPressed = false
     private var longPressRunnable: Runnable? = null
     private var pulsateAnimator: AnimatorSet? = null
+    private lateinit var infoButton: ImageButton
 
     private var onlineStatus = false
 
@@ -129,6 +134,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         }
 
         setupView();
+        showDisclaimerIfNeeded()
         setupPreferences();
         setOnclickListeners()
         setupLogsListener();
@@ -137,12 +143,53 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     }
 
+
+    private fun showDisclaimerIfNeeded() {
+        val sharedPreferences = getSharedPreferences("app_preferences", MODE_PRIVATE)
+        val hasAcceptedDisclaimer = sharedPreferences.getBoolean("disclaimer_accepted", false)
+
+        if (!hasAcceptedDisclaimer) {
+            // Create a dialog using AlertDialog.Builder
+            val dialogBuilder = AlertDialog.Builder(this)
+            val dialogView = layoutInflater.inflate(R.layout.disclaimer_dialog, null)
+            dialogBuilder.setView(dialogView)
+            dialogBuilder.setCancelable(false)
+
+            val disclaimerDialog = dialogBuilder.create()
+
+            // Make dialog transparent to show only the CardView with rounded corners
+            disclaimerDialog.window?.let { window ->
+                // Set background to transparent
+                window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                // Set dim amount for background
+                window.setDimAmount(0.6f)
+            }
+
+            // Set click listener for the consent button
+            dialogView.findViewById<Button>(R.id.btn_consent_button).setOnClickListener {
+                // Save that user has accepted the disclaimer
+                sharedPreferences.edit().putBoolean("disclaimer_accepted", true).apply()
+                disclaimerDialog.dismiss()
+            }
+
+            // Show the dialog
+            disclaimerDialog.show()
+        }
+    }
+
+
     private fun setOnclickListeners() {
         photoCaptureButton.setOnClickListener {
             val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             if (takePictureIntent.resolveActivity(packageManager) != null) {
                 startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE)
             }
+        }
+
+        infoButton.setOnClickListener {
+            // Open About Us activity when info button is clicked
+            val intent = Intent(this, AboutUsActivity::class.java)
+            startActivity(intent)
         }
     }
 
@@ -531,7 +578,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private fun setupView() {
         connectionStatus = findViewById<TextView>(R.id.connection_status)
         sosButton = findViewById<ImageButton>(R.id.sos)
-
+        infoButton = findViewById(R.id.info_button)
         deviceId = findViewById<TextView>(R.id.device_id)
 
         clockInImage = findViewById<ImageView>(R.id.clock_in_image)
