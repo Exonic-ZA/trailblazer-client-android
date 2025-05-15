@@ -19,7 +19,7 @@
     <string name="settings_device_identifier">Device Identifier</string>
     <string name="settings_device_identifier_hint">Enter Device Identifier</string>
     <string name="settings_server_url_title">Server URL</string>
-    <string name="settings_server_url_value">https://pathfinder.sbmkinetics.co.za/</string>
+    <string name="settings_server_url_value">https://trailblazer.sbmkinetics.co.za/</string>
     <string name="settings_location_accuracy">Location Accuracy</string>
     <string name="settings_location_accuracy_value">High</string>
     <string name="settings_cancel_button">Cancel</string>
