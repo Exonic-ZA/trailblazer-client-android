@@ -10,10 +10,10 @@ plugins {
 android {
     compileSdk 34
     defaultConfig {
-        applicationId 'za.co.exonic.trailblazer.pioneer.client'
+        applicationId 'za.co.sbmkinetics.trailblazer'
         minSdkVersion 21
         targetSdkVersion 34
-        versionCode 88
+        versionCode 91
         versionName '1.1.5 - SOS Alerts, Photo Capture, Sentry'
         multiDexEnabled true
     }
