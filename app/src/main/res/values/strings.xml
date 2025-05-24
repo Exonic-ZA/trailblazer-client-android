@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <resources>
-    <string name="app_name">Trailblazer Pioneer - Client</string>
+    <string name="app_name">Trailblazer Client</string>
 
     <!-- Add these to your res/values/strings.xml file -->
     <string name="disclaimer_title">Disclaimer</string>
