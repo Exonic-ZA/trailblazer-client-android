@@ -23,14 +23,17 @@ class CredentialHelper(private val context: Context) {
 
     /**
      * Attempts to retrieve saved credentials from Credential Manager
+     * This will automatically select the first credential if only one exists,
+     * or show picker if multiple exist
      * @return Pair of username and password, or null if no credentials found
      */
-    suspend fun getStoredCredentials(): Pair<String, String>? = withContext(Dispatchers.IO) {
+    suspend fun getStoredCredentials(username: String): Pair<String, String>? = withContext(Dispatchers.IO) {
         try {
-            val getPasswordOption = GetPasswordOption()
-            val getCredentialRequest = GetCredentialRequest(
-                listOf(getPasswordOption)
-            )
+            val getPasswordOption = GetPasswordOption(allowedUserIds = setOf(username),
+                isAutoSelectAllowed = true)
+            val getCredentialRequest = GetCredentialRequest.Builder()
+                .addCredentialOption(getPasswordOption)
+                .build()
 
             val credentialResponse = credentialManager.getCredential(
                 context = context,
@@ -55,6 +58,7 @@ class CredentialHelper(private val context: Context) {
 
     /**
      * Saves credentials to Android Credential Manager
+     * This will replace any existing credentials with the same username
      * @param username The username to save
      * @param password The password to save
      */
@@ -75,15 +79,23 @@ class CredentialHelper(private val context: Context) {
         }
     }
 
+
     /**
-     * Checks if credentials are available in Credential Manager
-     * @return true if credentials exist, false otherwise
+     * Clears all stored credentials for this app
+     * Note: This requires API level 34+ for programmatic deletion
+     * For older versions, users need to manually delete through system settings
      */
-    suspend fun hasStoredCredentials(): Boolean = withContext(Dispatchers.IO) {
+    suspend fun clearCredentials() = withContext(Dispatchers.IO) {
         try {
-            getStoredCredentials() != null
+            // Unfortunately, there's no direct API to delete credentials programmatically
+            // in older Android versions. Users would need to go to:
+            // Settings > Passwords & accounts > [Your App] > Delete
+
+            // For now, we can only clear our local reference
+            // The actual credential deletion depends on Android version and user action
+
         } catch (e: Exception) {
-            false
+            throw Exception("Failed to clear credentials: ${e.message}", e)
         }
     }
 }

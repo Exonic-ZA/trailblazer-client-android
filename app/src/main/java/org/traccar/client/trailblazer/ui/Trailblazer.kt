@@ -87,10 +87,12 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.content.edit
 
 
 class Trailblazer : AppCompatActivity(), PositionListener {
 
+    private var retryAttempt = 2
     private lateinit var connectionStatus: TextView
     private lateinit var sosButton: ImageButton
     private lateinit var deviceId: TextView
@@ -330,10 +332,12 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val credentialHelper = CredentialHelper(this@Trailblazer)
-
+                val preferences = PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
                 // Try to get stored credentials first
                 val storedCredentials = withContext(Dispatchers.IO) {
-                    credentialHelper.getStoredCredentials()
+                    preferences.getString("trailblazer_username", "")
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { credentialHelper.getStoredCredentials(it) }
                 }
 
                 if (storedCredentials != null) {
@@ -382,6 +386,8 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     private fun performImageUpload(deviceSerial: String, imageFile: MultipartBody.Part, username: String, password: String) {
         CoroutineScope(Dispatchers.Main).launch {
+            val preferences = PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
+            preferences.edit(commit = true) { putString("trailblazer_username", username) }
             val progressDialog = ProgressDialog(this@Trailblazer).apply {
                 setMessage("Uploading photo...")
                 setCancelable(false)
@@ -394,6 +400,17 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     val apiService = ApiClient.create(this@Trailblazer, username, password)
 
                     val deviceResponse = apiService.getDeviceBySerial(deviceSerial)
+                    if (deviceResponse.code() == 401 && retryAttempt > 0)
+                    {
+                        retryAttempt--
+                        showLoginDialog(deviceSerial, imageFile)
+                        return@withContext
+                    }
+                    if (deviceResponse.code() == 401 && retryAttempt == 0)
+                    {
+                        showResultDialog(false, "Your credentials was entered incorrectly too many times.", progressDialog)
+                        return@withContext
+                    }
                     if (!deviceResponse.isSuccessful || deviceResponse.body().isNullOrEmpty()) {
                         showResultDialog(false, "Device not found.", progressDialog)
                         return@withContext
