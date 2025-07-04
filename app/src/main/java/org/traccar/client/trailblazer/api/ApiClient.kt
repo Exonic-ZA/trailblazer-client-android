@@ -8,13 +8,18 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
-    private const val BASE_URL = "https://trailblazer.sbmkinetics.co.za/"
-    //TODO: Move to a secure space. Ran out of time.
-    private const val USERNAME = "system@trailblazer.internal"
-    private const val PASSWORD = "Babbling+Stomp+Bottling8+Payroll"
+    private const val BASE_URL = "https://pathfinder.sbmkinetics.co.za/" // Staging
 
-    fun create(trailblazer: Trailblazer): ApiService {
-        val credentials = Credentials.basic(USERNAME, PASSWORD)
+    // Fallback credentials for development/testing
+    private const val FALLBACK_USERNAME = "wesley@exonic.co.za"
+    private const val FALLBACK_PASSWORD = "Pass123!"
+
+    fun create(trailblazer: Trailblazer, username: String? = null, password: String? = null): ApiService {
+        // Use provided credentials, or fall back to defaults
+        val finalUsername = username ?: FALLBACK_USERNAME
+        val finalPassword = password ?: FALLBACK_PASSWORD
+
+        val credentials = Credentials.basic(finalUsername, finalPassword)
 
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
@@ -24,9 +29,9 @@ object ApiClient {
             .addInterceptor(loggingInterceptor)
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
-                    .addHeader("Authorization", credentials) // Direct Basic Auth
-                    .addHeader("Accept", "*/*") // Accept all response types
-                    .addHeader("Content-Type", "application/json; charset=UTF-8") // JSON content type
+                    .addHeader("Authorization", credentials)
+                    .addHeader("Accept", "*/*")
+                    .addHeader("Content-Type", "application/json; charset=UTF-8")
                     .build()
                 chain.proceed(request)
             }

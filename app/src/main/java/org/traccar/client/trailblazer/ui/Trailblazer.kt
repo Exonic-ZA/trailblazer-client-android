@@ -25,6 +25,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.MediaStore
+import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
@@ -39,6 +40,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -75,8 +77,10 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.traccar.client.BuildConfig
 import org.traccar.client.trailblazer.api.ApiClient
 import org.traccar.client.trailblazer.data.database.ImageMetadata
+import org.traccar.client.trailblazer.util.CredentialHelper
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -177,13 +181,85 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         }
     }
 
+    private val takePictureResultLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val imageBitmap = result.data?.extras?.get("data") as Bitmap?
+            imageBitmap?.let {
+                val imageFile = prepareImageFile(imageBitmap) // Convert Bitmap to Multipart
+                showConfirmationDialog(deviceId.text.toString(), imageFile)
+            }
+        }
+    }
+
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            handleCameraPermissionDenied()
+        }
+    }
+
+    private fun handleCameraPermissionDenied() {
+        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)) {
+            // User denied but can still be asked again
+            showPermissionRationaleDialog()
+        } else {
+            // User denied with "Don't ask again" OR first time denial
+            showGoToSettingsDialog()
+        }
+    }
+
+    private fun showPermissionRationaleDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Camera Permission Needed")
+            .setMessage("This app needs camera access to take photos.")
+            .setPositiveButton("Try Again") { _, _ ->
+                // This will show the system permission dialog again
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun showGoToSettingsDialog() {
+        // Only show this when user selected "Don't ask again"
+        AlertDialog.Builder(this)
+            .setTitle("Permission Required")
+            .setMessage("Camera permission was permanently denied. Please enable it in Settings.")
+            .setPositiveButton("Open Settings") { _, _ ->
+                openAppSettings()
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun openAppSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Cannot open settings", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     private fun setOnclickListeners() {
         photoCaptureButton.setOnClickListener {
-            val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            checkCameraPermissionAndLaunch()
+            /*val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             if (takePictureIntent.resolveActivity(packageManager) != null) {
                 startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE)
-            }
+            }*/
         }
 
         infoButton.setOnClickListener {
@@ -193,6 +269,23 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         }
     }
 
+    private fun checkCameraPermissionAndLaunch() {
+        when {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED -> {
+                launchCamera()
+            }
+            else -> {
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
+
+    private fun launchCamera() {
+        val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        takePictureResultLauncher.launch(takePictureIntent)
+    }
+/*
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
@@ -205,7 +298,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                 Log.e("API_CALL", "Failed to capture image!")
             }
         }
-    }
+    }*/
 
     // Convert Bitmap to Multipart
     private fun prepareImageFile(bitmap: Bitmap): MultipartBody.Part {
@@ -234,18 +327,72 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     }
 
     private fun submitImageMetadata(deviceSerial: String, imageFile: MultipartBody.Part) {
-        val apiService = ApiClient.create(this)
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val credentialHelper = CredentialHelper(this@Trailblazer)
 
-        // Ensure ProgressDialog is created and shown on the main thread
+                // Try to get stored credentials first
+                val storedCredentials = withContext(Dispatchers.IO) {
+                    credentialHelper.getStoredCredentials()
+                }
+
+                if (storedCredentials != null) {
+                    // Use stored credentials
+                    val (username, password) = storedCredentials
+                    performImageUpload(deviceSerial, imageFile, username, password)
+                } else {
+                    // Show login dialog
+                    showLoginDialog(deviceSerial, imageFile)
+                }
+
+            } catch (e: Exception) {
+                Sentry.captureException(e)
+                // If credential retrieval fails, show login dialog as fallback
+                showLoginDialog(deviceSerial, imageFile)
+            }
+        }
+    }
+
+    private fun showLoginDialog(deviceSerial: String, imageFile: MultipartBody.Part) {
+        val loginDialog = LoginDialog(
+            onLoginSuccess = { username, password ->
+                performImageUpload(deviceSerial, imageFile, username, password)
+            },
+            onLoginCancel = {
+                Toast.makeText(this, "Image upload cancelled", Toast.LENGTH_SHORT).show()
+            }
+        )
+        loginDialog.show(supportFragmentManager, "LoginDialog")
+    }
+
+
+    // Helper function to dismiss progress dialog and show alert dialog
+    private suspend fun showResultDialog(isSuccess: Boolean, message: String, progressDialog: ProgressDialog) {
+        withContext(Dispatchers.Main) {
+            progressDialog.dismiss() // Ensure dialog is dismissed on the main thread
+
+            AlertDialog.Builder(this@Trailblazer)
+                .setTitle(if (isSuccess) "Success" else "Error")
+                .setMessage(message)
+                .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+                .show()
+        }
+    }
+
+
+    private fun performImageUpload(deviceSerial: String, imageFile: MultipartBody.Part, username: String, password: String) {
         CoroutineScope(Dispatchers.Main).launch {
             val progressDialog = ProgressDialog(this@Trailblazer).apply {
                 setMessage("Uploading photo...")
                 setCancelable(false)
-                show() // Show progress dialog on the main thread
+                show()
             }
 
             try {
                 withContext(Dispatchers.IO) {
+                    // Create API service with credentials
+                    val apiService = ApiClient.create(this@Trailblazer, username, password)
+
                     val deviceResponse = apiService.getDeviceBySerial(deviceSerial)
                     if (!deviceResponse.isSuccessful || deviceResponse.body().isNullOrEmpty()) {
                         showResultDialog(false, "Device not found.", progressDialog)
@@ -283,22 +430,6 @@ class Trailblazer : AppCompatActivity(), PositionListener {
             }
         }
     }
-
-    // Helper function to dismiss progress dialog and show alert dialog
-    private suspend fun showResultDialog(isSuccess: Boolean, message: String, progressDialog: ProgressDialog) {
-        withContext(Dispatchers.Main) {
-            progressDialog.dismiss() // Ensure dialog is dismissed on the main thread
-
-            AlertDialog.Builder(this@Trailblazer)
-                .setTitle(if (isSuccess) "Success" else "Error")
-                .setMessage(message)
-                .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
-                .show()
-        }
-    }
-
-
-
 
 
     private fun createImageFile(): File? {
@@ -615,7 +746,12 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         }
 
         device_id = deviceId.text.toString()
-        server_url = getString(R.string.settings_server_url_value)
+        if (BuildConfig.DEBUG) {
+            server_url = getString(R.string.settings_server_url_value_staging)
+        }
+        else {
+            server_url = getString(R.string.settings_server_url_value)
+        }
         location_accuracy = getString(R.string.settings_location_accuracy_value)
         positionProvider = PositionProviderFactory.create(this, this)
     }
