@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.view.isVisible
 import androidx.fragment.app.DialogFragment
@@ -19,10 +20,12 @@ import org.traccar.client.R
 import org.traccar.client.trailblazer.util.CredentialHelper
 
 class LoginDialog(
+    private val isRetry: Boolean,
     private val onLoginSuccess: (username: String, password: String) -> Unit,
     private val onLoginCancel: () -> Unit = {}
 ) : DialogFragment() {
 
+    private lateinit var titleText: TextView
     private lateinit var usernameEditText: EditText
     private lateinit var passwordEditText: EditText
     private lateinit var loginButton: Button
@@ -54,6 +57,11 @@ class LoginDialog(
         loginButton = view.findViewById(R.id.button_login)
         cancelButton = view.findViewById(R.id.button_cancel)
         progressBar = view.findViewById(R.id.progress_bar)
+        if (isRetry)
+        {
+            titleText = view.findViewById(R.id.login_title)
+            titleText.setText(R.string.login_check_credentials)
+        }
     }
 
     private fun setupClickListeners() {

@@ -257,7 +257,8 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     private fun setOnclickListeners() {
         photoCaptureButton.setOnClickListener {
-            checkCameraPermissionAndLaunch()
+            showLoginDialog()
+
             /*val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             if (takePictureIntent.resolveActivity(packageManager) != null) {
                 startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE)
@@ -346,21 +347,23 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     performImageUpload(deviceSerial, imageFile, username, password)
                 } else {
                     // Show login dialog
-                    showLoginDialog(deviceSerial, imageFile)
+//                    showLoginDialog(deviceSerial, imageFile)
                 }
 
             } catch (e: Exception) {
                 Sentry.captureException(e)
                 // If credential retrieval fails, show login dialog as fallback
-                showLoginDialog(deviceSerial, imageFile)
+//                showLoginDialog(deviceSerial, imageFile)
             }
         }
     }
 
-    private fun showLoginDialog(deviceSerial: String, imageFile: MultipartBody.Part) {
+    private fun showLoginDialog(retry:Boolean = false) {
         val loginDialog = LoginDialog(
+            retry,
             onLoginSuccess = { username, password ->
-                performImageUpload(deviceSerial, imageFile, username, password)
+//                performImageUpload(deviceSerial, imageFile, username, password)
+                checkCameraPermissionAndLaunch()
             },
             onLoginCancel = {
                 Toast.makeText(this, "Image upload cancelled", Toast.LENGTH_SHORT).show()
@@ -402,16 +405,19 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     val deviceResponse = apiService.getDeviceBySerial(deviceSerial)
                     if (deviceResponse.code() == 401 && retryAttempt > 0)
                     {
+                        progressDialog.dismiss()
                         retryAttempt--
-                        showLoginDialog(deviceSerial, imageFile)
+                        showLoginDialog(true)
                         return@withContext
                     }
                     if (deviceResponse.code() == 401 && retryAttempt == 0)
                     {
+                        progressDialog.dismiss()
                         showResultDialog(false, "Your credentials was entered incorrectly too many times.", progressDialog)
                         return@withContext
                     }
                     if (!deviceResponse.isSuccessful || deviceResponse.body().isNullOrEmpty()) {
+                        progressDialog.dismiss()
                         showResultDialog(false, "Device not found.", progressDialog)
                         return@withContext
                     }
@@ -442,6 +448,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     }
                 }
             } catch (e: Exception) {
+                progressDialog.dismiss()
                 Sentry.captureException(e)
                 showResultDialog(false, "Something went wrong!", progressDialog)
             }

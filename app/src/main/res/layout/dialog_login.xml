@@ -16,6 +16,7 @@
 
         <!-- Title -->
         <TextView
+            android:id="@+id/login_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Login Required"
@@ -107,7 +108,7 @@
                 android:layout_height="wrap_content"
                 android:text="Login"
                 android:textSize="22sp"
-                android:backgroundTint="@color/primary" />
+                android:textColor="@color/primary" />
 
         </LinearLayout>
 

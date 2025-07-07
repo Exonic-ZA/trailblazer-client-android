@@ -1,6 +1,7 @@
 package org.traccar.client.trailblazer.util
 
 import android.content.Context
+import android.util.Log
 import androidx.credentials.CreatePasswordRequest
 import androidx.credentials.Credential
 import androidx.credentials.CredentialManager
@@ -19,6 +20,7 @@ class CredentialHelper(private val context: Context) {
 
     companion object {
         private const val CREDENTIAL_ID = "trailblazer_api_credentials"
+        private const val TAG = "CredentialManager"
     }
 
     /**
@@ -64,6 +66,7 @@ class CredentialHelper(private val context: Context) {
      */
     suspend fun saveCredentials(username: String, password: String) = withContext(Dispatchers.IO) {
         try {
+            Log.d(TAG, "saveCredentials: username $username")
             val createPasswordRequest = CreatePasswordRequest(
                 id = username, // Use username as the credential ID
                 password = password
@@ -75,7 +78,9 @@ class CredentialHelper(private val context: Context) {
             )
 
         } catch (e: CreateCredentialException) {
-            throw Exception("Failed to save credentials: ${e.message}", e)
+            Log.d(TAG, "saveCredentials: " + e.type)
+            Log.d(TAG, "saveCredentials: " + e.cause)
+//            throw Exception("Failed to save credentials: ${e.message}", e)
         }
     }
 
