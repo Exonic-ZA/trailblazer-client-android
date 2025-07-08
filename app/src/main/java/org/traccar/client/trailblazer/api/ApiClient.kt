@@ -3,12 +3,14 @@ package org.traccar.client.trailblazer.api
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import org.traccar.client.BuildConfig
 import org.traccar.client.trailblazer.ui.Trailblazer
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
-    private const val BASE_URL = "https://pathfinder.sbmkinetics.co.za/" // Staging
+    private const val BASE_URL = "https://trailblazer.sbmkinetics.co.za/"
+    private const val BASE_URL_STAGING = "https://pathfinder.sbmkinetics.co.za/" // Staging
 
     // Fallback credentials for development/testing
     private const val FALLBACK_USERNAME = "wesley@exonic.co.za"
@@ -37,8 +39,9 @@ object ApiClient {
             }
             .build()
 
+        val url = if (BuildConfig.DEBUG) BASE_URL_STAGING else BASE_URL
         val retrofit = Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(url)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

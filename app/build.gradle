@@ -14,7 +14,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 35
         versionCode 94
-        versionName '1.1.5 - SOS Alerts, Photo Capture, Sentry'
+        versionName '1.2.0 - SOS Alerts, Photo Capture, Sentry, Photo Auth'
         multiDexEnabled true
     }
     namespace 'org.traccar.client'
