@@ -13,7 +13,6 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
@@ -29,14 +28,12 @@ import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
-import android.view.WindowManager
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
-import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -47,12 +44,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.preference.PreferenceManager
-import com.example.utils.AuthHelper
-import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import org.traccar.client.Position
 import org.traccar.client.PositionProviderFactory
 import org.traccar.client.R
@@ -75,7 +69,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.traccar.client.BuildConfig
 import org.traccar.client.trailblazer.api.ApiClient
@@ -83,14 +76,13 @@ import org.traccar.client.trailblazer.data.database.ImageMetadata
 import org.traccar.client.trailblazer.util.CredentialHelper
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.core.content.edit
 
 
-class Trailblazer : AppCompatActivity(), PositionListener {
+class Trailblazer() : AppCompatActivity(), PositionListener {
 
     private var retryAttempt = 2
     private lateinit var connectionStatus: TextView
@@ -100,6 +92,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
     private lateinit var clockInText: TextView
     private lateinit var settingsButton: ImageButton
     private lateinit var photoCaptureButton: ImageButton
+    private lateinit var imageFile: MultipartBody.Part
 
     private lateinit var cardView: CardView
     private lateinit var deviceIdText: EditText
@@ -140,6 +133,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         }
 
         setupView();
+        setUpLoginDialog()
         showDisclaimerIfNeeded()
         setupPreferences();
         setOnclickListeners()
@@ -147,6 +141,28 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         checkBatteryOptimization();
         longPressSosButtonSetup();
 
+    }
+
+    private fun setUpLoginDialog() {
+        supportFragmentManager.setFragmentResultListener(LoginDialog.REQUEST_KEY_LOGIN, this) { requestKey, bundle ->
+            if (requestKey == LoginDialog.REQUEST_KEY_LOGIN) {
+                val isSuccess = bundle.getBoolean(LoginDialog.BUNDLE_KEY_IS_SUCCESS)
+                if (isSuccess) {
+                    val username = bundle.getString(LoginDialog.BUNDLE_KEY_USERNAME)
+                    val password = bundle.getString(LoginDialog.BUNDLE_KEY_PASSWORD)
+
+                    performImageUpload(deviceId.text.toString(), imageFile,
+                        username.toString(), password.toString()
+                    )
+
+                }
+                else
+                {
+                    // Handle login cancelled or failed
+                    Toast.makeText(this, "Login Cancelled or Failed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
 
@@ -189,7 +205,7 @@ class Trailblazer : AppCompatActivity(), PositionListener {
         if (result.resultCode == Activity.RESULT_OK) {
             val imageBitmap = result.data?.extras?.get("data") as Bitmap?
             imageBitmap?.let {
-                val imageFile = prepareImageFile(imageBitmap) // Convert Bitmap to Multipart
+                imageFile = prepareImageFile(imageBitmap) // Convert Bitmap to Multipart
                 showConfirmationDialog(deviceId.text.toString(), imageFile)
             }
         }
@@ -257,7 +273,29 @@ class Trailblazer : AppCompatActivity(), PositionListener {
 
     private fun setOnclickListeners() {
         photoCaptureButton.setOnClickListener {
-            showLoginDialog()
+            checkCameraPermissionAndLaunch()
+            // TODO:
+/*            CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    val credentialHelper = CredentialHelper(this@Trailblazer)
+                    val preferences = PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
+                    val storedCredentials =
+                        preferences.getString("trailblazer_username", "")
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { credentialHelper.getStoredCredentials(it) }
+
+                    if (storedCredentials != null) {
+                        checkCameraPermissionAndLaunch()
+                    }
+                    else
+                    {
+                        showLoginDialog()
+                    }
+                }
+                catch (e:Exception) {
+                }
+            }*/
+
 
             /*val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             if (takePictureIntent.resolveActivity(packageManager) != null) {
@@ -347,29 +385,22 @@ class Trailblazer : AppCompatActivity(), PositionListener {
                     performImageUpload(deviceSerial, imageFile, username, password)
                 } else {
                     // Show login dialog
-//                    showLoginDialog(deviceSerial, imageFile)
+                    Log.d(TAG, "submitImageMetadata: submitImageMetadata storedCredentials == null")
+                    showLoginDialog()
                 }
 
             } catch (e: Exception) {
+                Log.e(TAG, "submitImageMetadata: ", e)
                 Sentry.captureException(e)
                 // If credential retrieval fails, show login dialog as fallback
-//                showLoginDialog(deviceSerial, imageFile)
+                showLoginDialog()
             }
         }
     }
 
     private fun showLoginDialog(retry:Boolean = false) {
-        val loginDialog = LoginDialog(
-            retry,
-            onLoginSuccess = { username, password ->
-//                performImageUpload(deviceSerial, imageFile, username, password)
-                checkCameraPermissionAndLaunch()
-            },
-            onLoginCancel = {
-                Toast.makeText(this, "Image upload cancelled", Toast.LENGTH_SHORT).show()
-            }
-        )
-        loginDialog.show(supportFragmentManager, "LoginDialog")
+        val loginDialog = LoginDialog.newInstance(retry)
+        loginDialog.show(supportFragmentManager, "LoginDialogTag")
     }
 
 

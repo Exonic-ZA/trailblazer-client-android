@@ -11,6 +11,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 object ApiClient {
     private const val BASE_URL = "https://trailblazer.sbmkinetics.co.za/"
     private const val BASE_URL_STAGING = "https://pathfinder.sbmkinetics.co.za/" // Staging
+    private const val BASE_URL_DARREN = "http://192.168.10.133/"
 
     // Fallback credentials for development/testing
     private const val FALLBACK_USERNAME = "wesley@exonic.co.za"

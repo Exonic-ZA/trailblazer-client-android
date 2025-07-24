@@ -13,8 +13,8 @@ android {
         applicationId 'za.co.sbmkinetics.trailblazer'
         minSdkVersion 21
         targetSdkVersion 35
-        versionCode 94
-        versionName '1.2.0 - SOS Alerts, Photo Capture, Sentry, Photo Auth'
+        versionCode 95
+        versionName '1.2.1-3'
         multiDexEnabled true
     }
     namespace 'org.traccar.client'

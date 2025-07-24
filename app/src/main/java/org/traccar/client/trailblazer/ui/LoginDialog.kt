@@ -11,19 +11,35 @@ import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.os.bundleOf // Import for easy bundle creation
 import androidx.core.view.isVisible
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.setFragmentResult // For sending results back
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.launch
 import org.traccar.client.R
 import org.traccar.client.trailblazer.util.CredentialHelper
 
-class LoginDialog(
-    private val isRetry: Boolean,
-    private val onLoginSuccess: (username: String, password: String) -> Unit,
-    private val onLoginCancel: () -> Unit = {}
-) : DialogFragment() {
+// 1. Remove parameters from the primary constructor
+class LoginDialog : DialogFragment() {
+
+    // Define keys for arguments and results
+    companion object {
+        const val REQUEST_KEY_LOGIN = "login_request_key"
+        const val BUNDLE_KEY_USERNAME = "username"
+        const val BUNDLE_KEY_PASSWORD = "password"
+        const val BUNDLE_KEY_IS_SUCCESS = "is_success"
+        private const val ARG_IS_RETRY = "arg_is_retry" // Key for the isRetry argument
+
+        // Factory method to create an instance with arguments
+        fun newInstance(isRetry: Boolean): LoginDialog {
+            val args = bundleOf(ARG_IS_RETRY to isRetry)
+            val fragment = LoginDialog()
+            fragment.arguments = args
+            return fragment
+        }
+    }
 
     private lateinit var titleText: TextView
     private lateinit var usernameEditText: EditText
@@ -31,6 +47,17 @@ class LoginDialog(
     private lateinit var loginButton: Button
     private lateinit var cancelButton: Button
     private lateinit var progressBar: ProgressBar
+
+    // You can retrieve the isRetry value here
+    private var isRetry: Boolean = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Retrieve arguments here
+        arguments?.let {
+            isRetry = it.getBoolean(ARG_IS_RETRY, false)
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -48,7 +75,7 @@ class LoginDialog(
 
         // Make dialog non-cancelable by touching outside
         dialog?.setCanceledOnTouchOutside(false)
-        isCancelable = false
+        isCancelable = false // Prevent dismissal by pressing back button
     }
 
     private fun initViews(view: View) {
@@ -57,8 +84,8 @@ class LoginDialog(
         loginButton = view.findViewById(R.id.button_login)
         cancelButton = view.findViewById(R.id.button_cancel)
         progressBar = view.findViewById(R.id.progress_bar)
-        if (isRetry)
-        {
+
+        if (isRetry) {
             titleText = view.findViewById(R.id.login_title)
             titleText.setText(R.string.login_check_credentials)
         }
@@ -75,7 +102,8 @@ class LoginDialog(
         }
 
         cancelButton.setOnClickListener {
-            onLoginCancel()
+            // Use setFragmentResult to communicate back that login was cancelled
+            setFragmentResult(REQUEST_KEY_LOGIN, bundleOf(BUNDLE_KEY_IS_SUCCESS to false))
             dismiss()
         }
     }
@@ -101,17 +129,26 @@ class LoginDialog(
 
         lifecycleScope.launch {
             try {
-                // Save credentials to Credential Manager
                 val credentialHelper = CredentialHelper(requireContext())
                 credentialHelper.saveCredentials(username, password)
 
                 setLoadingState(false)
-                onLoginSuccess(username, password)
+                // Use setFragmentResult to communicate success and data back
+                setFragmentResult(
+                    REQUEST_KEY_LOGIN,
+                    bundleOf(
+                        BUNDLE_KEY_IS_SUCCESS to true,
+                        BUNDLE_KEY_USERNAME to username,
+                        BUNDLE_KEY_PASSWORD to password
+                    )
+                )
                 dismiss()
 
             } catch (e: Exception) {
                 setLoadingState(false)
                 Toast.makeText(context, "Failed to save credentials: ${e.message}", Toast.LENGTH_LONG).show()
+                // You might want to send a failed result back too
+                setFragmentResult(REQUEST_KEY_LOGIN, bundleOf(BUNDLE_KEY_IS_SUCCESS to false))
             }
         }
     }

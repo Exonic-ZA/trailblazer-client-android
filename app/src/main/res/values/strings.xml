@@ -20,6 +20,7 @@
     <string name="settings_device_identifier_hint">Enter Device Identifier</string>
     <string name="settings_server_url_title">Server URL</string>
     <string name="settings_server_url_value">https://trailblazer.sbmkinetics.co.za/</string>
+<!--    <string name="settings_server_url_value_staging">http://192.168.10.133/</string>-->
     <string name="settings_server_url_value_staging">https://pathfinder.sbmkinetics.co.za/</string>
     <string name="settings_location_accuracy">Location Accuracy</string>
     <string name="settings_location_accuracy_value">High</string>
@@ -77,5 +78,5 @@
     <string name="widget_label">Status widget</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
-    <string name="login_check_credentials">Please check your credentials again</string>
+    <string name="login_check_credentials">Please check your credentials!</string>
 </resources>

@@ -51,6 +51,7 @@ class CredentialHelper(private val context: Context) {
 
         } catch (e: NoCredentialException) {
             // No credentials found - this is expected for first-time users
+            Log.e(TAG, "getStoredCredentials: ", e)
             return@withContext null
         } catch (e: GetCredentialException) {
             // Handle other credential retrieval errors
