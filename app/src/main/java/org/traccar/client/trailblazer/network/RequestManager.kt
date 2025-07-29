@@ -18,6 +18,10 @@ package org.traccar.client.trailblazer.network
 
 import android.os.AsyncTask
 import android.util.Log
+import io.sentry.Sentry
+import io.sentry.SentryEvent
+import io.sentry.protocol.Message
+import io.sentry.protocol.SentryException
 import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -52,6 +56,15 @@ object RequestManager {
             true
         } catch (error: IOException) {
             Log.e("RequestManager", "IOException occurred: ${error.message}")
+            val sentryException = SentryException().apply {
+                value = error.message
+                type = error::class.java.simpleName
+            }
+            Sentry.captureEvent(SentryEvent().apply {
+                exceptions = listOf(sentryException)
+                message = Message().apply { formatted = "Network request failed" }  // Fix here
+                level = io.sentry.SentryLevel.ERROR
+            })
             false
         } finally {
             try {
@@ -59,10 +72,10 @@ object RequestManager {
                 Log.d("RequestManager", "InputStream closed successfully")
             } catch (secondError: IOException) {
                 Log.w("RequestManager", "Error closing InputStream: ${secondError.message}")
+                Sentry.captureException(secondError)
             }
         }
     }
-
 
     fun sendRequestAsync(request: String, handler: RequestHandler) {
         RequestAsyncTask(handler).execute(request)

@@ -5,13 +5,16 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="@dimen/eight_dp"
+    android:layout_marginBottom="@dimen/forty_eight_dp"
+    android:layout_marginTop="@dimen/forty_eight_dp"
+    android:layout_marginLeft="@dimen/twelve_dp"
+    android:layout_marginRight="@dimen/twelve_dp"
     tools:context=".trailblazer.ui.Trailblazer">
 
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
         android:id="@+id/linContent"
+        android:layout_width="403dp"
+        android:layout_height="881dp"
         android:orientation="vertical">
 
         <!-- Connection Status Section -->
@@ -19,92 +22,129 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
+
             <TextView
                 android:id="@+id/connection_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="@dimen/eight_dp"
-                android:textSize="16sp"
-                android:textColor="@color/primary"
                 android:layout_gravity="center_vertical"
+                android:background="@drawable/status_connected"
                 android:gravity="center"
-                android:background="@drawable/status_connected"/>
+                android:padding="@dimen/eight_dp"
+                android:textColor="@color/primary"
+                android:textSize="16sp" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="1"/>
+                android:layout_weight="1" />
+
             <ImageButton
                 android:id="@+id/sos"
-                android:layout_width="80dp"
-                android:padding="@dimen/six_dp"
-                android:layout_height="80dp"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
                 android:layout_gravity="end"
                 android:background="@android:color/transparent"
-                android:src="@drawable/sos"
+
                 android:scaleType="fitCenter"
-                tools:ignore="ContentDescription"/>
+                android:src="@drawable/sos"
+                tools:ignore="ContentDescription" />
+
+            <ImageButton
+                android:id="@+id/settings_button"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_gravity="end"
+                android:layout_margin="@dimen/eight_dp"
+                android:background="@drawable/rounded_button"
+                android:onClick="settingsClicked"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/settings"
+                tools:ignore="ContentDescription,UsingOnClickInXml" />
+
+            <ImageButton
+                android:id="@+id/info_button"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_gravity="end"
+                android:layout_margin="@dimen/eight_dp"
+                android:src="@drawable/ic_info"
+
+                android:scaleType="fitCenter"
+                android:background="@color/white"
+                tools:ignore="ContentDescription" />
         </LinearLayout>
 
         <!-- Logo and Device ID Section -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="@dimen/eight_dp"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingTop="@dimen/eight_dp">
+
             <ImageView
                 android:layout_width="112dp"
                 android:layout_height="112dp"
-                android:padding="@dimen/eight_dp"
-                android:src="@drawable/logo"
-                android:scaleType="fitCenter"
                 android:background="@drawable/round_outline"
-                tools:ignore="ContentDescription"/>
+                android:padding="@dimen/eight_dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/logo"
+                tools:ignore="ContentDescription" />
+
             <View
                 android:layout_width="@dimen/twelve_dp"
-                android:layout_height="0dp"/>
+                android:layout_height="0dp" />
+
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="112dp"
-                android:padding="@dimen/eight_dp"
+                android:layout_weight="1"
                 android:background="@drawable/round_outline"
-                android:layout_weight="1">
+                android:padding="@dimen/eight_dp">
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:padding="@dimen/eight_dp"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:padding="@dimen/eight_dp">
+
                     <ImageView
                         android:layout_width="30dp"
                         android:layout_height="30dp"
-                        android:src="@drawable/vehicle"
                         android:scaleType="fitCenter"
-                        tools:ignore="ContentDescription"/>
+                        android:src="@drawable/vehicle"
+                        tools:ignore="ContentDescription" />
+
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
-                        android:layout_weight="1"/>
+                        android:layout_weight="1" />
+
                     <TextView
                         android:id="@+id/device_id"
                         android:layout_width="match_parent"
                         android:layout_height="36dp"
                         android:ellipsize="end"
                         android:maxLines="1"
-                        android:textSize="30sp"
-                        android:textColor="@color/white"/>
+                        android:textColor="@color/white"
+                        android:textSize="30sp" />
                 </LinearLayout>
             </LinearLayout>
+
         </LinearLayout>
 
         <!-- Spacer Section -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="546dp"
             android:layout_weight="1">
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                tools:ignore="NestedWeights"/>
+                tools:ignore="NestedWeights" />
 
         </LinearLayout>
 
@@ -112,57 +152,59 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="24dp"
+            android:gravity="bottom"
             android:orientation="horizontal"
-            android:gravity="bottom">
+            android:paddingBottom="24dp">
             <!-- Clock In/Out Section -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="60dp"
+                android:layout_weight="1"
+                android:background="@drawable/round_outline"
+                android:clickable="true"
                 android:focusable="true"
                 android:gravity="center"
-                android:layout_weight="1"
-                android:clickable="true"
                 android:onClick="clockInAndOut"
-                android:background="@drawable/round_outline"
                 tools:ignore="UsingOnClickInXml">
+
                 <ImageView
                     android:id="@+id/clock_in_image"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:src="@drawable/clock_in"
-                    tools:ignore="ContentDescription"/>
+                    tools:ignore="ContentDescription" />
+
                 <TextView
                     android:id="@+id/clock_in_text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="@color/white"/>
+                    android:textColor="@color/white" />
             </LinearLayout>
 
             <ImageButton
                 android:id="@+id/btn_Logs"
                 android:layout_width="50dp"
                 android:layout_height="50dp"
-                android:padding="@dimen/twelve_dp"
-                android:visibility="gone"
-                android:onClick="settingsClicked"
-                android:src="@drawable/ic_thumb"
-                android:scaleType="fitCenter"
-                android:background="@drawable/round_outline"
                 android:layout_margin="@dimen/eight_dp"
-                tools:ignore="ContentDescription,UsingOnClickInXml"/>
+                android:background="@drawable/round_outline"
+                android:onClick="settingsClicked"
+                android:padding="@dimen/twelve_dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_thumb"
+                android:visibility="gone"
+                tools:ignore="ContentDescription,UsingOnClickInXml" />
             <!-- Settings Button -->
+
             <ImageButton
-                android:id="@+id/settings_button"
+                android:id="@+id/btn_photo"
                 android:layout_width="50dp"
                 android:layout_height="50dp"
-                android:padding="@dimen/twelve_dp"
-                android:onClick="settingsClicked"
-                android:src="@drawable/settings"
-                android:scaleType="fitCenter"
-                android:background="@drawable/rounded_button"
                 android:layout_margin="@dimen/eight_dp"
-                tools:ignore="ContentDescription,UsingOnClickInXml"/>
+                android:background="@drawable/rounded_button"
+                android:padding="@dimen/twelve_dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_photo"
+                tools:ignore="ContentDescription,UsingOnClickInXml" />
         </LinearLayout>
     </LinearLayout>
 
@@ -174,6 +216,7 @@
         app:cardCornerRadius="@dimen/twelve_dp"
         app:cardElevation="@dimen/twelve_dp"
         android:layout_margin="@dimen/twelve_dp"
+        android:visibility="gone"
         app:cardBackgroundColor="@color/white"
         app:cardMaxElevation="@dimen/twelve_dp"
         app:cardPreventCornerOverlap="true"

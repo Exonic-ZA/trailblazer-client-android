@@ -37,8 +37,7 @@ class AndroidPositionProvider(context: Context, listener: PositionListener) : Po
 
     private val locationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private val provider =
-        getProvider("medium") // getProvider(preferences.getString(MainFragment.KEY_ACCURACY, "high"))
+    private val provider = getProvider("high") // getProvider(preferences.getString(MainFragment.KEY_ACCURACY, "high"))
 
     @SuppressLint("MissingPermission")
     override fun startUpdates() {
@@ -86,9 +85,15 @@ class AndroidPositionProvider(context: Context, listener: PositionListener) : Po
                         )
                     }
 
-                    override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {}
-                    override fun onProviderEnabled(provider: String) {}
-                    override fun onProviderDisabled(provider: String) {}
+                    override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {
+                        Log.d(TAG, "onStatusChanged() called with provider: $provider, status: $status")
+                    }
+                    override fun onProviderEnabled(provider: String) {
+                        Log.d(TAG, "onProviderEnabled() called with provider: $provider")
+                    }
+                    override fun onProviderDisabled(provider: String) {
+                        Log.d(TAG, "onProviderDisabled() called with provider: $provider")
+                    }
                 }, Looper.myLooper())
             }
         } catch (e: RuntimeException) {

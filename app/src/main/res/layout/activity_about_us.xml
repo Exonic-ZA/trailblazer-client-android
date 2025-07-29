@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/layout/activity_about_us.xml -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:background="@color/white">
+
+    <!-- Green header with back button and "About Us" title -->
+    <LinearLayout
+        android:id="@+id/header_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/white"
+        android:padding="16dp"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/btn_back"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:padding="10dp"
+            android:background="@drawable/rounded_button"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_back"
+            android:contentDescription="Back" />
+
+
+    </LinearLayout>
+
+
+    <!-- Scrollable content - below the green header -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/header_layout"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Welcome Section -->
+
+            <ImageView
+                tools:ignore="ContentDescription"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:layout_gravity="end"
+                android:background="@drawable/round_outline"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/logo" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginTop="-30dp"
+                android:text="About Us"
+                android:textColor="@color/primary"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Welcome to Trailblazer, a mobile tracking app designed to streamline business operations through secure, location-based solutions and advanced delivery management tools. Our mission is to empower businesses with real-time insights, efficient logistics, and robust privacy controls to drive success."
+                android:textColor="@color/black"
+                android:textSize="16sp"
+                android:layout_marginBottom="16dp" />
+
+            <!-- What We Do Section -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="What We Do"
+                android:textColor="@color/primary"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Trailblazer leverages precise location data, device IDs, and user-uploaded images to deliver powerful features tailored for business needs, including:"
+                android:textColor="@color/black"
+                android:textSize="16sp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Features List -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="• "
+                    android:textColor="@color/primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Real-Time Tracking: Monitor the locations of delivery vehicles and sales personnel to optimize logistics and enhance responsiveness."
+                    android:textColor="@color/black"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="• "
+                    android:textColor="@color/primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SOS Emergency Response: Provide rapid assistance by utilizing accurate location data during critical situations."
+                    android:textColor="@color/black"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="• "
+                    android:textColor="@color/primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Route Optimization and Performance Analysis: Analyze location data to improve routes, reduce operational costs, and boost workforce efficiency."
+                    android:textColor="@color/black"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="• "
+                    android:textColor="@color/primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Parcel Delivery Management: Enable users to take and upload pictures of parcels to our secure servers, ensuring accurate tracking, proof of delivery, and streamlined package management."
+                    android:textColor="@color/black"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <!-- Privacy Section -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Our Commitment to Your Privacy"
+                android:textColor="@color/primary"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="At Trailblazer, your trust is paramount. We collect precise location data and device IDs, even when the app is closed or not in use, to support the features listed above. Location tracking is only active when manually enabled, and the tracking status is always clearly visible within the app. Additionally, any pictures you take and upload for parcel delivery management are securely stored and used solely for operational purposes, such as verifying deliveries."
+                android:textColor="@color/black"
+                android:textSize="16sp"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Your data—whether location, device IDs, or images—is never sold to third parties for marketing or any unauthorized use. You retain full control and can disable tracking or manage your data preferences at any time through the app. For a detailed explanation of how we protect your information, please visit our "
+                android:textColor="@color/black"
+                android:textSize="16sp"
+                android:layout_marginBottom="0dp" />
+
+            <TextView
+                android:id="@+id/privacy_link"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Privacy Policy"
+                android:textColor="@color/primary"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true"
+                android:autoLink="web"
+                android:onClick="openPrivacyPolicy"
+                android:layout_marginBottom="16dp" />
+
+        </LinearLayout>
+    </ScrollView>
+</RelativeLayout>
