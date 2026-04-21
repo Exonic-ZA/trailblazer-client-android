@@ -1,13 +1,14 @@
 .gradle
 .idea/
+.codex
+.codex/
 local.properties
 *.iml
 build/
 .DS_Store
 google-services.json
+app/regular/
 
-# Sentry Config File
-sentry.properties
 java_pid*.hprof
 java_pid*.hprof
 *.hprof
