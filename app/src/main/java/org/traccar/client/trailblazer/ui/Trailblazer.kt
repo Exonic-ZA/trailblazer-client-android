@@ -61,8 +61,6 @@ import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.device_id
 import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.location_accuracy
 import org.traccar.client.trailblazer.ui.Trailblazer.Server_Details.server_url
 import org.traccar.client.trailblazer.util.BatteryOptimizationHelper
-import io.sentry.Sentry
-import io.sentry.SentryLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -119,18 +117,12 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState);
 
-        Sentry.addBreadcrumb("Trailblazer onCreate", "Lifecycle");
-        Sentry.captureMessage("Trailblazer activity created", SentryLevel.INFO);
         //TODO: Improve better security of creds
        // AuthHelper.saveCredentials(this, "system@trailblazer.internal", "Babbling+Stomp+Bottling8+Payroll")
 
-        try {
-            enableEdgeToEdge();
-            supportActionBar?.hide();
-            setContentView(R.layout.activity_trailblazer);
-        } catch (e: Exception) {
-            Sentry.captureException(e);
-        }
+        enableEdgeToEdge();
+        supportActionBar?.hide();
+        setContentView(R.layout.activity_trailblazer);
 
         setupView();
         setUpLoginDialog()
@@ -391,7 +383,6 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
 
             } catch (e: Exception) {
                 Log.e(TAG, "submitImageMetadata: ", e)
-                Sentry.captureException(e)
                 // If credential retrieval fails, show login dialog as fallback
                 showLoginDialog()
             }
@@ -480,7 +471,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                 }
             } catch (e: Exception) {
                 progressDialog.dismiss()
-                Sentry.captureException(e)
+                Log.e(TAG, "performImageUpload failed", e)
                 showResultDialog(false, "Something went wrong!", progressDialog)
             }
         }
@@ -577,22 +568,20 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
         when (requestCode) {
             PERMISSIONS_REQUEST_LOCATION -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Sentry.captureMessage("Location permission granted", SentryLevel.INFO);
                     connectUser();
                 } else {
-                    Sentry.captureMessage("Location permission denied", SentryLevel.WARNING);
+                    Log.w(TAG, "Location permission denied")
                     Toast.makeText(this, "Location permission is required to access GPS", Toast.LENGTH_LONG).show()
                 }
             }
             PERMISSIONS_REQUEST_BACKGROUND_LOCATION -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Sentry.captureMessage("Background location permission granted", SentryLevel.INFO);
                     updateConnectionOnline();
                     positionProvider.startUpdates();
                     startTrackingService(checkPermission = true, initialPermission = false);
                     Log.i(TAG, "Background location permission granted.")
                 } else {
-                    Sentry.captureMessage("Background location permission denied", SentryLevel.WARNING);
+                    Log.w(TAG, "Background location permission denied")
                     Toast.makeText(this, "Background location permission is required for tracking location in the background.", Toast.LENGTH_LONG).show()
                 }
             }
@@ -620,7 +609,6 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                     isLongPressed = false // Reset state
                     longPressRunnable = Runnable {
                         isLongPressed = true
-                        Sentry.captureMessage("User long pressed", SentryLevel.INFO);
                         sendAlarm() // Send SOS alarm after long press
                         startPulsatingAnimation(view) // Start animation when long pressed
 
@@ -650,7 +638,6 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
         sosButton.setOnClickListener {
             stopPulsatingAnimation(sosButton)
             if (!isLongPressed) {
-                Sentry.captureMessage("User did not long pressed", SentryLevel.INFO);
                 Toast.makeText(
                     this@Trailblazer,
                     "Please long press for 2s to Activate SOS",
@@ -666,7 +653,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
     private fun sendAlarm() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                Sentry.captureMessage("SOS alarm triggered", SentryLevel.INFO)
+                Log.i(TAG, "SOS alarm triggered")
 
                 val progressDialog = ProgressDialog(this@Trailblazer).apply {
                     setMessage("Sending SOS...")
@@ -682,7 +669,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                             //progressDialog.dismiss() // Dismiss on the main thread
 
                             if (position == null) {
-                                Sentry.captureMessage("Received null position in onPositionUpdate", SentryLevel.ERROR)
+                                Log.e(TAG, "Received null position in onPositionUpdate")
                                 Toast.makeText(this@Trailblazer, "Failed to get location", Toast.LENGTH_LONG).show()
                                 return@launch
                             }
@@ -691,14 +678,14 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                             val url = server_url
 
                             if (url.isNullOrEmpty()) {
-                                Sentry.captureMessage("SOS failed: URL is missing from preferences", SentryLevel.ERROR)
+                                Log.e(TAG, "SOS failed: URL is missing from preferences")
                                 Toast.makeText(this@Trailblazer, "Missing SOS server URL", Toast.LENGTH_LONG).show()
                                 return@launch
                             }
 
                             position.deviceId = device_id?.replace("\\s".toRegex(), "")?.uppercase() ?: "UNKNOWN"
                             currentPosition = position
-                            Sentry.addBreadcrumb("Position update received: $position", "GPS")
+                            Log.d(TAG, "Position update received: $position")
 
                             val request = formatRequest(url, position, ShortcutActivity.ALARM_SOS)
 
@@ -709,11 +696,11 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                                         CoroutineScope(Dispatchers.Main).launch {
                                             if (success) {
                                                 progressDialog.dismiss()
-                                                Sentry.captureMessage("SOS sent successfully", SentryLevel.INFO)
+                                                Log.i(TAG, "SOS sent successfully")
                                                 showSuccessModal()
                                             } else {
                                                 progressDialog.dismiss()
-                                                Sentry.captureMessage("SOS send failed", SentryLevel.ERROR)
+                                                Log.e(TAG, "SOS send failed")
                                                 Toast.makeText(this@Trailblazer, R.string.status_send_fail, Toast.LENGTH_SHORT).show()
                                             }
                                         }
@@ -727,8 +714,8 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                         CoroutineScope(Dispatchers.Main).launch {
                             progressDialog.dismiss()
                             val errorMsg = error.message ?: "Unknown location error"
+                            Log.e(TAG, "SOS location error", error)
                             Toast.makeText(this@Trailblazer, errorMsg, Toast.LENGTH_LONG).show()
-                            Sentry.captureException(error)
                         }
                     }
                 })
@@ -737,12 +724,12 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                     positionProvider.requestSingleLocation()
                 } else {
                     progressDialog.dismiss()
-                    Sentry.captureMessage("PositionProviderFactory returned null", SentryLevel.ERROR)
+                    Log.e(TAG, "PositionProviderFactory returned null")
                     Toast.makeText(this@Trailblazer, "Failed to initialize GPS", Toast.LENGTH_LONG).show()
                 }
 
             } catch (e: Exception) {
-                Sentry.captureException(e)
+                Log.e(TAG, "sendAlarm failed", e)
             }
         }
     }
@@ -863,12 +850,10 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
     private fun connectUser() {
         try {
             Log.d(TAG, "Connecting user...")
-            Sentry.captureMessage("Attempting to connect user", SentryLevel.INFO);
             onlineStatus = true
             checkLocationPermissions()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to connect user: ${e.message}", e)
-            Sentry.captureException(e);
         }
     }
 
@@ -899,14 +884,12 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
     private fun disconnectUser() {
         try {
             Log.d(TAG, "Disconnecting user...")
-            Sentry.captureMessage("Attempting to disconnect user", SentryLevel.INFO);
             onlineStatus = false
             updateConnectionOffline()
             positionProvider.stopUpdates()
             stopTrackingService()
             Log.i(TAG, "User disconnected successfully.")
         } catch (e: Exception) {
-            Sentry.captureException(e);
             Log.e(TAG, "Failed to disconnect user: ${e.message}", e)
         }
     }
