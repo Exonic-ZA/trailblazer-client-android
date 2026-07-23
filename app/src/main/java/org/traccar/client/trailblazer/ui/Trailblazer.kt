@@ -135,6 +135,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
             }
         }
 
+        ensureNotificationPermission()
         checkBatteryOptimization()
     }
 
@@ -191,6 +192,27 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
         }
     }
 
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Log.w(TAG, "Notification permission denied; the tracking notification will be hidden")
+        }
+    }
+
+    /**
+     * Without POST_NOTIFICATIONS the foreground-service notification is suppressed on Android 13+,
+     * leaving tracking running with no visible indicator.
+     */
+    private fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -545,7 +567,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
         val originalIntent = Intent(this, AutostartReceiver::class.java)
         originalIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
