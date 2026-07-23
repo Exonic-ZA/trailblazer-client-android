@@ -23,6 +23,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -54,20 +55,32 @@ class TrackingService : Service() {
     override fun onCreate() {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         try {
-            startForeground(NOTIFICATION_ID, createNotification(this))
+            // Must be checked *before* startForeground: from Android 14, starting a
+            // location-typed foreground service without it throws SecurityException.
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                Log.w(TAG, "location permission missing, not starting tracking service")
+                sharedPreferences.edit().putBoolean(MainFragment.KEY_STATUS, false).apply()
+                stopSelf()
+                return
+            }
+
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                createNotification(this),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+            )
             Log.i(TAG, "service create")
             sendBroadcast(Intent(ACTION_STARTED).setPackage(packageName))
             StatusActivity.addMessage(getString(R.string.status_service_create))
 
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                if (sharedPreferences.getBoolean(MainFragment.KEY_WAKELOCK, true)) {
-                    val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-                    wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, javaClass.name)
-                    wakeLock?.acquire()
-                }
-                trackingController = TrackingController(this)
-                trackingController?.start()
+            if (sharedPreferences.getBoolean(MainFragment.KEY_WAKELOCK, true)) {
+                val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, javaClass.name)
+                wakeLock?.acquire()
             }
+            trackingController = TrackingController(this)
+            trackingController?.start()
         } catch (e: RuntimeException) {
             Log.w(TAG, e)
             sharedPreferences.edit().putBoolean(MainFragment.KEY_STATUS, false).apply()
