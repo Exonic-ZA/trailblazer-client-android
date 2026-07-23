@@ -1,39 +1,53 @@
 package org.traccar.client.trailblazer.ui.compose
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.automirrored.outlined.ListAlt
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import kotlinx.coroutines.launch
 import org.traccar.client.trailblazer.util.Logger
 
-private enum class TrailblazerTab(val label: String, val icon: ImageVector) {
-    Track("Track", Icons.Outlined.MyLocation),
-    Logs("Logs", Icons.AutoMirrored.Outlined.ListAlt),
-    Settings("Settings", Icons.Outlined.Settings),
+private enum class TrailblazerTab(
+    val label: String,
+    val selectedIcon: ImageVector,
+    val icon: ImageVector,
+) {
+    Track("Track", Icons.Filled.MyLocation, Icons.Outlined.MyLocation),
+    Logs("Logs", Icons.AutoMirrored.Filled.ListAlt, Icons.AutoMirrored.Outlined.ListAlt),
+    Settings("Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 }
 
 /**
- * Root of the Compose UI. [Scaffold] applies the system bar insets, which is what keeps the app
- * usable under the edge-to-edge enforcement that Android 16 makes mandatory at targetSdk 36.
+ * Root of the Compose UI.
+ *
+ * [Scaffold] applies the system bar insets to both the app bar and the navigation bar, which is
+ * what keeps the app usable under the edge-to-edge enforcement Android 16 makes mandatory at
+ * targetSdk 36.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,47 +63,49 @@ fun TrailblazerApp(
     }
 
     val tabs = TrailblazerTab.entries
-    val pagerState = rememberPagerState(pageCount = { tabs.size })
-    val scope = rememberCoroutineScope()
+    var selected by rememberSaveable { mutableStateOf(TrailblazerTab.Track) }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Trailblazer") },
+                title = { Text(selected.label) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             )
         },
+        bottomBar = {
+            NavigationBar {
+                tabs.forEach { tab ->
+                    val isSelected = tab == selected
+                    NavigationBarItem(
+                        selected = isSelected,
+                        onClick = { selected = tab },
+                        icon = {
+                            Icon(
+                                imageVector = if (isSelected) tab.selectedIcon else tab.icon,
+                                contentDescription = null,
+                            )
+                        },
+                        label = { Text(tab.label) },
+                    )
+                }
+            }
+        },
     ) { innerPadding ->
-        Box(
-            Modifier
+        AnimatedContent(
+            targetState = selected,
+            transitionSpec = { fadeIn() togetherWith fadeOut() using SizeTransform(clip = false) },
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-        ) {
-            androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-                PrimaryTabRow(selectedTabIndex = pagerState.currentPage) {
-                    tabs.forEachIndexed { index, tab ->
-                        Tab(
-                            selected = pagerState.currentPage == index,
-                            onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                            text = { Text(tab.label) },
-                            icon = { Icon(tab.icon, contentDescription = null) },
-                        )
-                    }
-                }
-
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                ) { page ->
-                    when (tabs[page]) {
-                        TrailblazerTab.Track -> TrackScreen(state = state, actions = actions)
-                        TrailblazerTab.Logs -> LogsScreen(logs = logs)
-                        TrailblazerTab.Settings -> SettingsScreen(state = state, actions = actions)
-                    }
-                }
+            label = "tabContent",
+        ) { tab ->
+            when (tab) {
+                TrailblazerTab.Track -> TrackScreen(state = state, actions = actions)
+                TrailblazerTab.Logs -> LogsScreen(logs = logs)
+                TrailblazerTab.Settings -> SettingsScreen(state = state, actions = actions)
             }
         }
     }
