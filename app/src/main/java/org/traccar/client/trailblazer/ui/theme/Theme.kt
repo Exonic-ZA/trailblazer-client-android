@@ -57,14 +57,14 @@ private val DarkColors = darkColorScheme(
 /**
  * Material 3 theme for Trailblazer.
  *
- * Follows the system light/dark setting, and opts into dynamic colour on Android 12+ so the
- * app picks up the user's wallpaper palette. Set [dynamicColor] to false to force the brand
- * palette regardless of platform.
+ * Follows the system light/dark setting. Dynamic colour is off by default: this is a branded
+ * business app, and the Trailblazer green carries meaning (it is the connected state), so the
+ * wallpaper palette should not override it. Pass [dynamicColor] = true to opt in.
  */
 @Composable
 fun TrailblazerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
