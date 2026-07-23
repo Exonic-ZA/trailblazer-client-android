@@ -22,6 +22,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.ListView
 import org.traccar.client.R
+import org.traccar.client.trailblazer.util.Logger
 import java.text.DateFormat
 import java.util.*
 
@@ -73,6 +74,9 @@ class StatusActivity : AppCompatActivity() {
         }
 
         fun addMessage(originalMessage: String) {
+            // Also feed the Logs tab, which is the surface users actually see.
+            Logger.addLog("Tracking", originalMessage)
+
             var message = originalMessage
             val format = DateFormat.getTimeInstance(DateFormat.MEDIUM)
             message = format.format(Date()) + " - " + message

@@ -15,7 +15,7 @@
  */
 package org.traccar.client.trailblazer.core
 
-import androidx.multidex.MultiDexApplication
+import android.app.Application
 import android.annotation.TargetApi
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -30,7 +30,7 @@ import org.traccar.client.R
  * The MainApplication class is the application's entry point for initializing global
  * configurations, services, and resources
  */
-open class MainApplication : MultiDexApplication() {
+open class MainApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()

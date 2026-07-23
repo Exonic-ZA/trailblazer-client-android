@@ -3,33 +3,42 @@ package org.traccar.client.trailblazer.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.View
-import android.widget.ImageButton
+import android.widget.Toast
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import org.traccar.client.R
+import org.traccar.client.trailblazer.ui.compose.AboutScreen
+import org.traccar.client.trailblazer.ui.theme.TrailblazerTheme
 
 class AboutUsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Hide the system status bar and action bar for a cleaner look
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN
+        enableEdgeToEdge()
         supportActionBar?.hide()
 
-        setContentView(R.layout.activity_about_us)
-
-        // Setup back button
-        val backButton = findViewById<ImageButton>(R.id.btn_back)
-        backButton.setOnClickListener {
-            finish() // Close this activity and return to previous screen
+        setContent {
+            TrailblazerTheme {
+                AboutScreen(
+                    onBack = { finish() },
+                    onOpenPrivacyPolicy = ::openPrivacyPolicy,
+                )
+            }
         }
     }
 
-    // For Kotlin
-    fun openPrivacyPolicy(view: View) {
-        val intent = Intent(Intent.ACTION_VIEW)
-        intent.data = Uri.parse("https://sbmserv.co.za/privacy-policy/")
-        startActivity(intent)
+    private fun openPrivacyPolicy() {
+        val intent = Intent(Intent.ACTION_VIEW, PRIVACY_POLICY_URL.toUri())
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+        } else {
+            Toast.makeText(this, "No browser available", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private companion object {
+        const val PRIVACY_POLICY_URL = "https://sbmserv.co.za/privacy-policy/"
     }
 }
+
+private fun String.toUri(): Uri = Uri.parse(this)

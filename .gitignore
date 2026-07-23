@@ -10,3 +10,6 @@ java_pid*.hprof
 java_pid*.hprof
 *.hprof
 *.hprof
+
+# Local release output
+app/regular/
