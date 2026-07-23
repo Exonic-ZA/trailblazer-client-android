@@ -21,6 +21,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
+import androidx.core.content.ContextCompat
 import android.util.Log
 
 /**
@@ -47,7 +48,7 @@ class NetworkManager(private val context: Context, private val handler: NetworkH
     fun start() {
         val filter = IntentFilter()
         filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION)
-        context.registerReceiver(this, filter)
+        ContextCompat.registerReceiver(context, this, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     fun stop() {

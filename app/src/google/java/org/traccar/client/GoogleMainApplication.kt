@@ -36,7 +36,7 @@ class GoogleMainApplication : MainApplication() {
         val filter = IntentFilter()
         filter.addAction(TrackingService.ACTION_STARTED)
         filter.addAction(TrackingService.ACTION_STOPPED)
-        ContextCompat.registerReceiver(this, ServiceReceiver(), filter, ContextCompat.RECEIVER_EXPORTED)
+        ContextCompat.registerReceiver(this, ServiceReceiver(), filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP_MR1)
