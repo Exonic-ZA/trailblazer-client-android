@@ -100,7 +100,7 @@ class MainFragment : PreferenceFragmentCompat(), OnSharedPreferenceChangeListene
         originalIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
