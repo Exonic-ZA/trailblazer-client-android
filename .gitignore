@@ -1,15 +1,16 @@
 .gradle
 .idea/
 .codex
-.codex/
 local.properties
 *.iml
 build/
 .DS_Store
 google-services.json
-app/regular/
 
 java_pid*.hprof
 java_pid*.hprof
 *.hprof
 *.hprof
+
+# Local release output
+app/regular/

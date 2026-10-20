@@ -1,8 +1,6 @@
 package org.traccar.client.trailblazer.ui
 
 import android.Manifest
-import android.animation.AnimatorSet
-import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlarmManager
@@ -26,26 +24,25 @@ import android.os.Vibrator
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
-import android.view.MotionEvent
 import android.view.View
-import android.view.animation.LinearInterpolator
-import android.view.inputmethod.InputMethodManager
 import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import org.traccar.client.trailblazer.ui.compose.TrailblazerActions
+import org.traccar.client.trailblazer.ui.compose.TrailblazerApp
+import org.traccar.client.trailblazer.ui.compose.TrailblazerUiState
+import org.traccar.client.trailblazer.ui.theme.TrailblazerTheme
+import org.traccar.client.trailblazer.util.Logger
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.res.ResourcesCompat
-import androidx.core.view.isVisible
 import androidx.preference.PreferenceManager
 import org.traccar.client.Position
 import org.traccar.client.PositionProviderFactory
@@ -83,19 +80,10 @@ import androidx.core.content.edit
 class Trailblazer() : AppCompatActivity(), PositionListener {
 
     private var retryAttempt = 2
-    private lateinit var connectionStatus: TextView
-    private lateinit var sosButton: ImageButton
-    private lateinit var deviceId: TextView
-    private lateinit var clockInImage: ImageView
-    private lateinit var clockInText: TextView
-    private lateinit var settingsButton: ImageButton
-    private lateinit var photoCaptureButton: ImageButton
     private lateinit var imageFile: MultipartBody.Part
 
-    private lateinit var cardView: CardView
-    private lateinit var deviceIdText: EditText
-    private lateinit var serverUrlLabel: EditText
-    private lateinit var locationAccuracyLabel: EditText
+    private var uiState by mutableStateOf(TrailblazerUiState())
+    private var showDisclaimer by mutableStateOf(false)
 
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var alarmManager: AlarmManager
@@ -105,8 +93,6 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
     private val handler = Handler(Looper.getMainLooper())
     private var isLongPressed = false
     private var longPressRunnable: Runnable? = null
-    private var pulsateAnimator: AnimatorSet? = null
-    private lateinit var infoButton: ImageButton
 
     private var onlineStatus = false
 
@@ -120,23 +106,49 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
         //TODO: Improve better security of creds
        // AuthHelper.saveCredentials(this, "system@trailblazer.internal", "Babbling+Stomp+Bottling8+Payroll")
 
-        try {
-            enableEdgeToEdge();
-            supportActionBar?.hide();
-            setContentView(R.layout.activity_trailblazer);
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in onCreate", e)
+        enableEdgeToEdge()
+        supportActionBar?.hide()
+
+        showDisclaimer = !getSharedPreferences("app_preferences", MODE_PRIVATE)
+            .getBoolean("disclaimer_accepted", false)
+
+        setUpLoginDialog()
+        setupPreferences()
+
+        setContent {
+            TrailblazerTheme {
+                TrailblazerApp(
+                    state = uiState,
+                    actions = TrailblazerActions(
+                        onClockToggle = ::clockInAndOut,
+                        onSosTriggered = ::triggerSos,
+                        onCapturePhoto = ::checkCameraPermissionAndLaunch,
+                        onSaveDeviceId = ::saveDeviceId,
+                        onOpenAbout = {
+                            startActivity(Intent(this, AboutUsActivity::class.java))
+                        },
+                    ),
+                    logs = Logger.getLogs(),
+                    showDisclaimer = showDisclaimer,
+                    onConsent = ::consentToDisclaimer,
+                )
+            }
         }
 
-        setupView();
-        setUpLoginDialog()
-        showDisclaimerIfNeeded()
-        setupPreferences();
-        setOnclickListeners()
-        setupLogsListener();
-        checkBatteryOptimization();
-        longPressSosButtonSetup();
+        ensureNotificationPermission()
+        checkBatteryOptimization()
+    }
 
+    /** Raises an SOS alert, with haptic confirmation that the hold registered. */
+    private fun triggerSos() {
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(500)
+        }
+        sendAlarm()
     }
 
     private fun setUpLoginDialog() {
@@ -147,7 +159,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                     val username = bundle.getString(LoginDialog.BUNDLE_KEY_USERNAME)
                     val password = bundle.getString(LoginDialog.BUNDLE_KEY_PASSWORD)
 
-                    performImageUpload(deviceId.text.toString(), imageFile,
+                    performImageUpload(uiState.deviceId, imageFile,
                         username.toString(), password.toString()
                     )
 
@@ -162,37 +174,10 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
     }
 
 
-    private fun showDisclaimerIfNeeded() {
-        val sharedPreferences = getSharedPreferences("app_preferences", MODE_PRIVATE)
-        val hasAcceptedDisclaimer = sharedPreferences.getBoolean("disclaimer_accepted", false)
-
-        if (!hasAcceptedDisclaimer) {
-            // Create a dialog using AlertDialog.Builder
-            val dialogBuilder = AlertDialog.Builder(this)
-            val dialogView = layoutInflater.inflate(R.layout.disclaimer_dialog, null)
-            dialogBuilder.setView(dialogView)
-            dialogBuilder.setCancelable(false)
-
-            val disclaimerDialog = dialogBuilder.create()
-
-            // Make dialog transparent to show only the CardView with rounded corners
-            disclaimerDialog.window?.let { window ->
-                // Set background to transparent
-                window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                // Set dim amount for background
-                window.setDimAmount(0.6f)
-            }
-
-            // Set click listener for the consent button
-            dialogView.findViewById<Button>(R.id.btn_consent_button).setOnClickListener {
-                // Save that user has accepted the disclaimer
-                sharedPreferences.edit().putBoolean("disclaimer_accepted", true).apply()
-                disclaimerDialog.dismiss()
-            }
-
-            // Show the dialog
-            disclaimerDialog.show()
-        }
+    private fun consentToDisclaimer() {
+        getSharedPreferences("app_preferences", MODE_PRIVATE)
+            .edit().putBoolean("disclaimer_accepted", true).apply()
+        showDisclaimer = false
     }
 
     private val takePictureResultLauncher = registerForActivityResult(
@@ -202,11 +187,32 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
             val imageBitmap = result.data?.extras?.get("data") as Bitmap?
             imageBitmap?.let {
                 imageFile = prepareImageFile(imageBitmap) // Convert Bitmap to Multipart
-                showConfirmationDialog(deviceId.text.toString(), imageFile)
+                showConfirmationDialog(uiState.deviceId, imageFile)
             }
         }
     }
 
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Log.w(TAG, "Notification permission denied; the tracking notification will be hidden")
+        }
+    }
+
+    /**
+     * Without POST_NOTIFICATIONS the foreground-service notification is suppressed on Android 13+,
+     * leaving tracking running with no visible indicator.
+     */
+    private fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -267,45 +273,6 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
         }
     }
 
-    private fun setOnclickListeners() {
-        photoCaptureButton.setOnClickListener {
-            checkCameraPermissionAndLaunch()
-            // TODO:
-/*            CoroutineScope(Dispatchers.Main).launch {
-                try {
-                    val credentialHelper = CredentialHelper(this@Trailblazer)
-                    val preferences = PreferenceManager.getDefaultSharedPreferences(this@Trailblazer)
-                    val storedCredentials =
-                        preferences.getString("trailblazer_username", "")
-                            ?.takeIf { it.isNotBlank() }
-                            ?.let { credentialHelper.getStoredCredentials(it) }
-
-                    if (storedCredentials != null) {
-                        checkCameraPermissionAndLaunch()
-                    }
-                    else
-                    {
-                        showLoginDialog()
-                    }
-                }
-                catch (e:Exception) {
-                }
-            }*/
-
-
-            /*val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-            if (takePictureIntent.resolveActivity(packageManager) != null) {
-                startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE)
-            }*/
-        }
-
-        infoButton.setOnClickListener {
-            // Open About Us activity when info button is clicked
-            val intent = Intent(this, AboutUsActivity::class.java)
-            startActivity(intent)
-        }
-    }
-
     private fun checkCameraPermissionAndLaunch() {
         when {
             ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
@@ -330,7 +297,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
             val imageBitmap = data?.extras?.get("data") as? Bitmap
             if (imageBitmap != null) {
                 val imageFile = prepareImageFile(imageBitmap) // Convert Bitmap to Multipart
-                showConfirmationDialog(deviceId.text.toString(), imageFile)
+                showConfirmationDialog(uiState.deviceId, imageFile)
             } else {
                 Log.e("API_CALL", "Failed to capture image!")
             }
@@ -475,7 +442,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                 }
             } catch (e: Exception) {
                 progressDialog.dismiss()
-                Log.e(TAG, "Error in performImageUpload", e)
+                Log.e(TAG, "performImageUpload failed", e)
                 showResultDialog(false, "Something went wrong!", progressDialog)
             }
         }
@@ -574,6 +541,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     connectUser();
                 } else {
+                    Log.w(TAG, "Location permission denied")
                     Toast.makeText(this, "Location permission is required to access GPS", Toast.LENGTH_LONG).show()
                 }
             }
@@ -584,6 +552,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                     startTrackingService(checkPermission = true, initialPermission = false);
                     Log.i(TAG, "Background location permission granted.")
                 } else {
+                    Log.w(TAG, "Background location permission denied")
                     Toast.makeText(this, "Background location permission is required for tracking location in the background.", Toast.LENGTH_LONG).show()
                 }
             }
@@ -592,69 +561,69 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
 
 
 
-    private fun setupLogsListener() {
-        findViewById<ImageButton>(R.id.btn_Logs).setOnClickListener {
-            supportFragmentManager.beginTransaction()
-                .replace(R.id.linContent, LogsFragment())
-                .addToBackStack(null)
-                .commit()
+    private fun setupPreferences() {
+        sharedPreferences = getPreferences(MODE_PRIVATE)
+        alarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val originalIntent = Intent(this, AutostartReceiver::class.java)
+        originalIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        alarmIntent = PendingIntent.getBroadcast(this, 0, originalIntent, flags)
+
+        if (!sharedPreferences.contains(KEY_DEVICE)) {
+            sharedPreferences.edit().putString(KEY_DEVICE, "").apply()
         }
 
+        device_id = sharedPreferences.getString(KEY_DEVICE, "").orEmpty()
+        if (BuildConfig.DEBUG) {
+            server_url = getString(R.string.settings_server_url_value_staging)
+        }
+        else {
+            server_url = getString(R.string.settings_server_url_value)
+        }
+        location_accuracy = getString(R.string.settings_location_accuracy_value)
+        positionProvider = PositionProviderFactory.create(this, this)
+
+        uiState = uiState.copy(
+            deviceId = device_id,
+            serverUrl = server_url,
+            locationAccuracy = location_accuracy,
+        )
     }
 
-    private fun longPressSosButtonSetup() {
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-
-        sosButton.setOnTouchListener { view, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    isLongPressed = false // Reset state
-                    longPressRunnable = Runnable {
-                        isLongPressed = true
-                        sendAlarm() // Send SOS alarm after long press
-                        startPulsatingAnimation(view) // Start animation when long pressed
-
-                        // Add vibration
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
-                        } else {
-                            vibrator.vibrate(500) // Fallback for older devices
-                        }
-                    }
-                    handler.postDelayed(longPressRunnable!!, 2000) // 2 seconds delay
-                }
-
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    handler.removeCallbacks(longPressRunnable!!)
-                    if (isLongPressed) {
-                        stopPulsatingAnimation(view) // Stop animation if long pressed
-                    } else {
-                        // Handle regular click
-                        view.performClick()
-                    }
-                }
+    private fun clockInAndOut() {
+        if (uiState.deviceId.isNotBlank()) {
+            if (this.onlineStatus) {
+                Log.i(TAG, "User is online. Proceeding to disconnect.")
+                disconnectUser()
+            } else {
+                Log.i(TAG, "User is offline. Proceeding to connect.")
+                connectUser()
             }
-            true
-        }
-
-        sosButton.setOnClickListener {
-            stopPulsatingAnimation(sosButton)
-            if (!isLongPressed) {
-                Toast.makeText(
-                    this@Trailblazer,
-                    "Please long press for 2s to Activate SOS",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-            }
+        } else {
+            Log.w(TAG, "Device ID is empty or blank.")
+            Toast.makeText(this, "Set a device ID in Settings first", Toast.LENGTH_LONG).show()
         }
     }
 
-
+    private fun saveDeviceId(newDeviceId: String) {
+        if (newDeviceId.isBlank()) {
+            Toast.makeText(this, "Please enter the device id", Toast.LENGTH_LONG).show()
+            return
+        }
+        sharedPreferences.edit().putString(KEY_DEVICE, newDeviceId).apply()
+        device_id = newDeviceId
+        uiState = uiState.copy(deviceId = newDeviceId)
+        Log.i(TAG, "Settings saved successfully. Device ID updated to: $device_id")
+    }
 
     private fun sendAlarm() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
+                Log.i(TAG, "SOS alarm triggered")
 
                 val progressDialog = ProgressDialog(this@Trailblazer).apply {
                     setMessage("Sending SOS...")
@@ -670,6 +639,7 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                             //progressDialog.dismiss() // Dismiss on the main thread
 
                             if (position == null) {
+                                Log.e(TAG, "Received null position in onPositionUpdate")
                                 Toast.makeText(this@Trailblazer, "Failed to get location", Toast.LENGTH_LONG).show()
                                 return@launch
                             }
@@ -678,12 +648,14 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                             val url = server_url
 
                             if (url.isNullOrEmpty()) {
+                                Log.e(TAG, "SOS failed: URL is missing from preferences")
                                 Toast.makeText(this@Trailblazer, "Missing SOS server URL", Toast.LENGTH_LONG).show()
                                 return@launch
                             }
 
                             position.deviceId = device_id?.replace("\\s".toRegex(), "")?.uppercase() ?: "UNKNOWN"
                             currentPosition = position
+                            Log.d(TAG, "Position update received: $position")
 
                             val request = formatRequest(url, position, ShortcutActivity.ALARM_SOS)
 
@@ -694,9 +666,11 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                                         CoroutineScope(Dispatchers.Main).launch {
                                             if (success) {
                                                 progressDialog.dismiss()
+                                                Log.i(TAG, "SOS sent successfully")
                                                 showSuccessModal()
                                             } else {
                                                 progressDialog.dismiss()
+                                                Log.e(TAG, "SOS send failed")
                                                 Toast.makeText(this@Trailblazer, R.string.status_send_fail, Toast.LENGTH_SHORT).show()
                                             }
                                         }
@@ -710,8 +684,8 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                         CoroutineScope(Dispatchers.Main).launch {
                             progressDialog.dismiss()
                             val errorMsg = error.message ?: "Unknown location error"
+                            Log.e(TAG, "SOS location error", error)
                             Toast.makeText(this@Trailblazer, errorMsg, Toast.LENGTH_LONG).show()
-                            Log.e(TAG, "Position error in sendAlarm", error)
                         }
                     }
                 })
@@ -720,11 +694,12 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
                     positionProvider.requestSingleLocation()
                 } else {
                     progressDialog.dismiss()
+                    Log.e(TAG, "PositionProviderFactory returned null")
                     Toast.makeText(this@Trailblazer, "Failed to initialize GPS", Toast.LENGTH_LONG).show()
                 }
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error in sendAlarm", e)
+                Log.e(TAG, "sendAlarm failed", e)
             }
         }
     }
@@ -742,106 +717,6 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
             .show()
     }
 
-
-    private fun setupView() {
-        connectionStatus = findViewById<TextView>(R.id.connection_status)
-        sosButton = findViewById<ImageButton>(R.id.sos)
-        infoButton = findViewById(R.id.info_button)
-        deviceId = findViewById<TextView>(R.id.device_id)
-
-        clockInImage = findViewById<ImageView>(R.id.clock_in_image)
-        clockInText = findViewById<TextView>(R.id.clock_in_text)
-        settingsButton = findViewById<ImageButton>(R.id.settings_button)
-        photoCaptureButton = findViewById(R.id.btn_photo)
-
-        cardView = findViewById<CardView>(R.id.settings_view)
-        deviceIdText = findViewById<EditText>(R.id.settings_device_id)
-        serverUrlLabel = findViewById<EditText>(R.id.settings_server_url)
-        locationAccuracyLabel = findViewById<EditText>(R.id.settings_location_accuracy)
-        cardView.isVisible = false
-
-        updateConnectionOffline()
-    }
-
-    private fun setupPreferences() {
-        sharedPreferences = getPreferences(MODE_PRIVATE)
-        alarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val originalIntent = Intent(this, AutostartReceiver::class.java)
-        originalIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-        alarmIntent = PendingIntent.getBroadcast(this, 0, originalIntent, flags)
-
-        if (sharedPreferences.contains(KEY_DEVICE)) {
-            deviceId.text = sharedPreferences.getString(KEY_DEVICE, "")
-        } else {
-            sharedPreferences.edit().putString(KEY_DEVICE, "").apply()
-            deviceId.setText("")
-        }
-
-        device_id = deviceId.text.toString()
-        if (BuildConfig.DEBUG) {
-            server_url = getString(R.string.settings_server_url_value_staging)
-        }
-        else {
-            server_url = getString(R.string.settings_server_url_value)
-        }
-        location_accuracy = getString(R.string.settings_location_accuracy_value)
-        positionProvider = PositionProviderFactory.create(this, this)
-    }
-
-    public final fun clockInAndOut(view: View) {
-        if (deviceId.text.toString().trim().isNotEmpty() && deviceId.text.toString().trim().isNotBlank()) {
-            if (this.onlineStatus) {
-                Log.i(TAG, "User is online. Proceeding to disconnect.")
-                disconnectUser()
-            } else {
-                Log.i(TAG, "User is offline. Proceeding to connect.")
-                connectUser()
-            }
-        } else {
-            Log.w(TAG, "Device ID is empty or blank. Showing card view.")
-            showCardView()
-        }
-    }
-
-    private fun startPulsatingAnimation(view: View) {
-        val scaleXAnimator = ObjectAnimator.ofFloat(view, "scaleX", 1f, 1.2f, 1f).apply {
-            duration = 600
-            interpolator = LinearInterpolator()
-            repeatCount = ObjectAnimator.INFINITE
-        }
-
-        val scaleYAnimator = ObjectAnimator.ofFloat(view, "scaleY", 1f, 1.2f, 1f).apply {
-            duration = 600
-            interpolator = LinearInterpolator()
-            repeatCount = ObjectAnimator.INFINITE
-        }
-
-        pulsateAnimator = AnimatorSet().apply {
-            playTogether(scaleXAnimator, scaleYAnimator)
-            start()
-        }
-    }
-
-    private fun stopPulsatingAnimation(view: View) {
-        pulsateAnimator?.end()  // Stop and remove all running animations
-        pulsateAnimator = null  // Clear reference
-
-        view.scaleX = 1f  // Reset to normal
-        view.scaleY = 1f
-    }
-
-    public final fun settingsClicked(view: View) {
-        Log.d(TAG, "settingsClicked invoked")
-        //disconnectUser()
-        Log.i(TAG, "User disconnected successfully. Showing card view.")
-        showCardView()
-    }
-
     private fun connectUser() {
         try {
             Log.d(TAG, "Connecting user...")
@@ -853,27 +728,11 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
     }
 
     fun updateConnectionOnline() {
-        connectionStatus.text = getString(R.string.status_connected)
-        connectionStatus.setTextColor(ContextCompat.getColor(this, R.color.primary))
-        connectionStatus.background = ResourcesCompat.getDrawable(getResources(),
-            R.drawable.status_connected, null)
-
-        clockInText.text = getString(R.string.clock_out)
-        clockInImage.setImageDrawable(ResourcesCompat.getDrawable(getResources(),
-            R.drawable.clock_out, null))
+        uiState = uiState.copy(online = true)
     }
 
-
-    @SuppressLint("UseCompatLoadingForDrawables")
     fun updateConnectionOffline() {
-        connectionStatus.text = getString(R.string.status_disconnected)
-        connectionStatus.setTextColor(ContextCompat.getColor(this, R.color.light_gray))
-        connectionStatus.background = ResourcesCompat.getDrawable(getResources(),
-            R.drawable.status_disconnected, null)
-
-        clockInText.text = getString(R.string.clock_in)
-        clockInImage.setImageDrawable(ResourcesCompat.getDrawable(getResources(),
-            R.drawable.clock_in, null))
+        uiState = uiState.copy(online = false)
     }
 
     private fun disconnectUser() {
@@ -886,51 +745,6 @@ class Trailblazer() : AppCompatActivity(), PositionListener {
             Log.i(TAG, "User disconnected successfully.")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to disconnect user: ${e.message}", e)
-        }
-    }
-
-    private fun showCardView() {
-        Log.d(TAG, "Showing card view")
-        deviceIdText.setText(device_id)
-        serverUrlLabel.setText(server_url)
-        locationAccuracyLabel.setText(location_accuracy)
-        cardView.isVisible = true
-    }
-
-    public final fun cancelSettingsClicked(view: View) {
-        Log.d(TAG, "cancelSettingsClicked invoked")
-        hideKeyboard()
-        cardView.isVisible = false
-        Log.i(TAG, "Settings view canceled.")
-    }
-
-    public final fun saveSettingsClicked(view: View) {
-        Log.d(TAG, "saveSettingsClicked invoked")
-        hideKeyboard()
-        if (deviceIdText.text.toString().trim().isNotEmpty() && deviceIdText.text.toString().trim().isNotBlank()) {
-            try {
-                sharedPreferences.edit().putString(KEY_DEVICE, deviceIdText.text.toString()).apply()
-                deviceId.text = sharedPreferences.getString(KEY_DEVICE, "")
-                device_id = deviceId.text.toString()
-                cardView.isVisible = false
-                Log.i(TAG, "Settings saved successfully. Device ID updated to: $device_id")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to save settings: ${e.message}", e)
-            }
-        } else {
-            Log.w(TAG, "Device ID is empty or blank. Prompting user.")
-            Toast.makeText(this, "Please enter the device id", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun hideKeyboard() {
-        try {
-            Log.d(TAG, "Hiding keyboard")
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.hideSoftInputFromWindow(deviceIdText.windowToken, 0)
-            Log.i(TAG, "Keyboard hidden successfully.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to hide keyboard: ${e.message}", e)
         }
     }
 

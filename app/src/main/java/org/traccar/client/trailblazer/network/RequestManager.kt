@@ -51,14 +51,14 @@ object RequestManager {
             Log.d("RequestManager", "Request sent successfully")
             true
         } catch (error: IOException) {
-            Log.e("RequestManager", "IOException occurred: ${error.message}")
+            Log.e("RequestManager", "Network request failed", error)
             false
         } finally {
             try {
                 inputStream?.close()
                 Log.d("RequestManager", "InputStream closed successfully")
             } catch (secondError: IOException) {
-                Log.w("RequestManager", "Error closing InputStream: ${secondError.message}")
+                Log.w("RequestManager", "Error closing InputStream", secondError)
             }
         }
     }
