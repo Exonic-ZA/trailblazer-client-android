@@ -21,7 +21,7 @@ plugins {
 def versionMajor = 1
 def versionMinor = 3
 def versionPatch = 0
-def versionBuild = 1
+def versionBuild = 2
 
 android {
     compileSdk 36
@@ -29,7 +29,7 @@ android {
         applicationId 'za.co.sbmkinetics.trailblazer'
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 100
+        versionCode 101
         versionName "${versionMajor}.${versionMinor}.${versionPatch}-${versionBuild}"
     }
     namespace 'org.traccar.client'

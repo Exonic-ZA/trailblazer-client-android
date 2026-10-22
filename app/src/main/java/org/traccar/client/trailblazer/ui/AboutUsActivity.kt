@@ -1,6 +1,7 @@
 package org.traccar.client.trailblazer.ui
 
 import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
@@ -29,11 +30,20 @@ class AboutUsActivity : AppCompatActivity() {
 
     private fun openPrivacyPolicy() {
         val intent = Intent(Intent.ACTION_VIEW, PRIVACY_POLICY_URL.toUri())
+            .addCategory(Intent.CATEGORY_BROWSABLE)
         if (intent.resolveActivity(packageManager) != null) {
-            startActivity(intent)
+            try {
+                startActivity(intent)
+            } catch (_: ActivityNotFoundException) {
+                showNoBrowserMessage()
+            }
         } else {
-            Toast.makeText(this, "No browser available", Toast.LENGTH_SHORT).show()
+            showNoBrowserMessage()
         }
+    }
+
+    private fun showNoBrowserMessage() {
+        Toast.makeText(this, "No web browser is available to open the privacy policy.", Toast.LENGTH_SHORT).show()
     }
 
     private companion object {
