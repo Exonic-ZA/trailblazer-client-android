@@ -27,7 +27,7 @@ android {
     compileSdk 36
     defaultConfig {
         applicationId 'za.co.sbmkinetics.trailblazer'
-        minSdkVersion 23
+        minSdkVersion 24
         targetSdkVersion 36
         versionCode 101
         versionName "${versionMajor}.${versionMinor}.${versionPatch}-${versionBuild}"
